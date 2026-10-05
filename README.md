@@ -14,7 +14,7 @@ src/lib/server/
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
   hoc-vien.ts            Đọc danh sách học viên (Sheet/CSV), sinh SQL nạp vào D1
 src/routes/
-  layout.css             Tailwind + daisyUI, theme light tùy biến theo Kumo (UI Cloudflare): chữ 14px, ô/nút cao 36px, nút chính cam
+  layout.css             Tailwind + daisyUI, theme light tùy biến: kích thước theo Kumo của Cloudflare (chữ 14px, ô/nút cao 36px), màu theo logo (xanh đậm #273ca7 chủ đạo, xanh dương #1670c0, vàng cát #dcbd8e)
   +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
@@ -152,7 +152,7 @@ npm run deploy:cron     # chạy mỗi 10 phút
 - **Đã thi rồi**: khi tìm thấy tên một người đã có lượt thi, kết quả hiện "Đã có lượt thi, hãy liên hệ giám thị" và không chọn được. Điểm chỉ xem được ở trình duyệt đã dùng để thi.
 - **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng *cả* tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.
 - **Ai cũng tìm được tên trong danh sách**: ô tìm không yêu cầu đăng nhập, nên ai mở trang cũng thấy tên, Giáo xứ và Giáo phận của người khớp (tối đa 8 dòng, phải gõ từ 2 ký tự, không hiện ngày sinh hay điểm). Nếu danh sách cần giữ kín, đặt cả trang sau Cloudflare Access hoặc chỉ mở link cho lớp thi.
-- **Logo/favicon**: `src/lib/assets/gpthaibinh90years.webp`, hiển thị ở đầu trang chào và dùng làm favicon (`+layout.svelte`). Bản sao trong `static/` không được dùng.
+- **Logo/favicon**: `src/lib/assets/gpthaibinh90years.webp`, hiển thị ở đầu trang chào và dùng làm favicon (`+layout.svelte`). 
 - **Danh sách từ CSV không tách Tên Thánh**: toàn bộ chuỗi (ví dụ "Vinh Sơn Đỗ Văn Hậu") được lưu ở cột Họ và tên, cột Tên Thánh trên Sheet kết quả sẽ để trống. Muốn tách riêng, dùng tab `HocVien` với cột A là Tên Thánh.
 - **Trang chào**: tiêu đề và phụ đề nằm ở hai hằng `TIEU_DE`, `PHU_DE` đầu file `src/routes/+page.svelte`.
 - **Quota Sheets** là khoảng 60 lượt ghi mỗi phút. Khi nhiều người nộp cùng lúc, có thể một số bài không lên Sheet ngay (sau khi đã retry). Các bài đó vẫn giữ `sync_pending = 1` để resync hoặc cron đẩy lên sau. Resync gom nhiều hàng vào một request.

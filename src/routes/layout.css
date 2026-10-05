@@ -3,25 +3,25 @@
 	themes: false;
 }
 
-/* ponytail: xấp xỉ Kumo (UI dashboard Cloudflare) từ thông tin công khai: chữ 14px, nút chính cam, nền sáng, viền xám nhạt, không đổ bóng.
-   Muốn khớp từng pixel thì chỉnh các biến dưới đây theo ảnh chụp trang thật. */
+/* Kích thước theo Kumo (UI dashboard Cloudflare): chữ 14px, ô/nút cao 36px, nền sáng, viền xám nhạt, không đổ bóng.
+   Màu theo logo Giáo phận Thái Bình: xanh đậm #273ca7 (chữ, số 9), xanh dương #197dd4 (sóng, dùng đậm hơn một chút #1670c0 để chữ trắng đủ tương phản), vàng cát #dcbd8e (thuyền). */
 @plugin 'daisyui/theme' {
 	name: 'cloudflare';
 	default: true;
 	color-scheme: light;
 	--color-base-100: #ffffff;
-	--color-base-200: #f7f7f7;
-	--color-base-300: #e1e1e1;
+	--color-base-200: #eef1f8;
+	--color-base-300: #dde2ee;
 	--color-base-content: #313131;
-	--color-primary: #ff4801;
+	--color-primary: #273ca7;
 	--color-primary-content: #ffffff;
-	--color-secondary: #313131;
+	--color-secondary: #1670c0;
 	--color-secondary-content: #ffffff;
-	--color-accent: #0051c3;
-	--color-accent-content: #ffffff;
+	--color-accent: #dcbd8e;
+	--color-accent-content: #313131;
 	--color-neutral: #313131;
 	--color-neutral-content: #ffffff;
-	--color-info: #0051c3;
+	--color-info: #1670c0;
 	--color-info-content: #ffffff;
 	--color-success: #1a7f4b;
 	--color-success-content: #ffffff;
@@ -49,6 +49,6 @@
 		font-weight: 600;
 	}
 	a:not(.btn) {
-		color: var(--color-info);
+		color: var(--color-primary);
 	}
 }
