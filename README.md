@@ -70,13 +70,13 @@ npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_gia
 
 Đề gồm các **phần** theo thứ tự, mỗi phần bốc ngẫu nhiên số câu cấu hình từ một **nhóm** câu hỏi. Đề thật có 5 phần:
 
-| Phần | Nhóm gợi ý | Số câu | Điểm | Loại câu |
-|---|---|---|---|---|
-| I – Trắc nghiệm giáo lý hôn nhân | `giao_ly_hon_nhan` | 30 | 30 (1 điểm/câu) | `TN` |
-| II – Trắc nghiệm giáo lý căn bản | `giao_ly_can_ban` | 30 | 30 (1 điểm/câu) | `TN` |
-| III – Trắc nghiệm kinh bổn | `kinh_bon` | 6 | 12 (2 điểm/câu) | `TN` |
-| IV – Tự luận (điền vào chỗ trống) | `dien_khuyet` | 4 | 8 (2 điểm/câu) | `DK` |
-| V – Tự luận, sống hôn nhân | `song_hon_nhan` | 4 | 20 (2 + 2 + 2 + 14) | `DK` ×3, `TL` ×1 |
+| Phần                              | Nhóm gợi ý         | Số câu | Điểm                | Loại câu         |
+| --------------------------------- | ------------------ | ------ | ------------------- | ---------------- |
+| I – Trắc nghiệm giáo lý hôn nhân  | `giao_ly_hon_nhan` | 30     | 30 (1 điểm/câu)     | `TN`             |
+| II – Trắc nghiệm giáo lý căn bản  | `giao_ly_can_ban`  | 30     | 30 (1 điểm/câu)     | `TN`             |
+| III – Trắc nghiệm kinh bổn        | `kinh_bon`         | 6      | 12 (2 điểm/câu)     | `TN`             |
+| IV – Tự luận (điền vào chỗ trống) | `dien_khuyet`      | 4      | 8 (2 điểm/câu)      | `DK`             |
+| V – Tự luận, sống hôn nhân        | `song_hon_nhan`    | 4      | 20 (2 + 2 + 2 + 14) | `DK` ×3, `TL` ×1 |
 
 Tổng 100 điểm: 72 điểm trắc nghiệm hệ thống tự chấm, 28 điểm (phần IV và V) giáo viên chấm trên Sheet. Phần V luôn đủ 4 câu **theo đúng thứ tự** (Câu 1 → 4, tắt xáo); các phần còn lại xáo thứ tự câu, và câu trắc nghiệm còn xáo cả thứ tự đáp án.
 
@@ -112,7 +112,7 @@ python3 -m venv .venv && .venv/bin/pip install openpyxl     # lần đầu
 .venv/bin/python scripts/tao-sheet-de-thi.py                # → resources/de-thi-2026.xlsx
 ```
 
-Script tự kiểm tra: mỗi câu trắc nghiệm đủ 4 lựa chọn và đáp án A–D, số câu mỗi phần khớp `info.csv`, tổng đúng 100 điểm (điểm mỗi câu = điểm phần ÷ số câu; Phần V lấy điểm ghi trong câu). Rồi lên Google Sheets: **Tệp → Nhập → Tải lên →** chọn file → *Thay thế bảng tính* (hoặc *Chèn trang tính mới* nếu Sheet đã có tab `KetQua`). Chia sẻ Sheet cho service account, rồi gọi `/api/admin/import`.
+Script tự kiểm tra: mỗi câu trắc nghiệm đủ 4 lựa chọn và đáp án A–D, số câu mỗi phần khớp `info.csv`, tổng đúng 100 điểm (điểm mỗi câu = điểm phần ÷ số câu; Phần V lấy điểm ghi trong câu). Rồi lên Google Sheets: **Tệp → Nhập → Tải lên →** chọn file → _Thay thế bảng tính_ (hoặc _Chèn trang tính mới_ nếu Sheet đã có tab `KetQua`). Chia sẻ Sheet cho service account, rồi gọi `/api/admin/import`.
 
 File `.xlsx` chứa đáp án và tên học viên: không đưa vào git.
 
@@ -120,11 +120,11 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 
 **`CauHoi`** (bắt buộc khi import). Thứ tự dòng chỉ quan trọng với phần tắt xáo (phần V): các câu được lấy theo thứ tự trong tab.
 
-| A: Mã | B: Loại | C: Nhóm    | D: Nội dung                   | E: Đáp án | F: Điểm | G: Lựa chọn A | H: Lựa chọn B | I, J, …: Lựa chọn C, D, … |
-| ----- | ------- | ---------- | ----------------------------- | --------- | ------- | ------------- | ------------- | ------------------------- |
-| KT01  | TN      | kinh_thanh | Sách đầu tiên của Kinh Thánh? | A         | 1       | Sáng Thế      | Xuất Hành     | I: Lêvi · J: Dân Số       |
-| DK01  | DK      | dien_khuyet | Chúa Giêsu sinh ra tại thành ______. |      | 2       |               |               |                           |
-| V4    | TL      | song_hon_nhan | Câu 4: Người đời thường cho rằng … (viết khoảng 150-200 từ) | | 14 |      |               |                           |
+| A: Mã | B: Loại | C: Nhóm       | D: Nội dung                                                 | E: Đáp án | F: Điểm | G: Lựa chọn A | H: Lựa chọn B | I, J, …: Lựa chọn C, D, … |
+| ----- | ------- | ------------- | ----------------------------------------------------------- | --------- | ------- | ------------- | ------------- | ------------------------- |
+| KT01  | TN      | kinh_thanh    | Sách đầu tiên của Kinh Thánh?                               | A         | 1       | Sáng Thế      | Xuất Hành     | I: Lêvi · J: Dân Số       |
+| DK01  | DK      | dien_khuyet   | Chúa Giêsu sinh ra tại thành **\_\_**.                      |           | 2       |               |               |                           |
+| V4    | TL      | song_hon_nhan | Câu 4: Người đời thường cho rằng … (viết khoảng 150-200 từ) |           | 14      |               |               |                           |
 
 - Loại: `TN` (trắc nghiệm, tự chấm), `DK` (điền vào chỗ trống, ô trả lời ngắn 3 dòng) hoặc `TL` (tự luận, ô trả lời dài, có đếm số từ). `DK` và `TL` do giáo viên chấm; không cần Đáp án và Lựa chọn.
 - Nhóm của câu phải khớp một dòng trong tab `PhanThi`, nếu không câu đó không bao giờ được bốc (import sẽ cảnh báo).
@@ -133,13 +133,13 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 
 **`PhanThi`** (bắt buộc khi import): các phần của đề, thứ tự dòng là thứ tự phần. Cột: A: Nhóm (khớp cột Nhóm của `CauHoi`) | B: Tiêu đề phần | C: Số câu bốc | D: Hướng dẫn (tùy chọn) | E: Xáo thứ tự câu (để trống hoặc "có"; ghi "không" để giữ thứ tự trong ngân hàng).
 
-| A: Nhóm | B: Tiêu đề phần | C: Số câu | D: Hướng dẫn | E: Xáo |
-|---|---|---|---|---|
-| giao_ly_hon_nhan | PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN | 30 | | |
-| giao_ly_can_ban | PHẦN II. TRẮC NGHIỆM GIÁO LÝ CĂN BẢN | 30 | | |
-| kinh_bon | PHẦN III. TRẮC NGHIỆM KINH BỔN | 6 | | |
-| dien_khuyet | PHẦN IV – TỰ LUẬN | 4 | (điền đáp án vào chỗ trống) | |
-| song_hon_nhan | PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN | 4 | (điền đáp án vào chỗ trống) | không |
+| A: Nhóm          | B: Tiêu đề phần                       | C: Số câu | D: Hướng dẫn                | E: Xáo |
+| ---------------- | ------------------------------------- | --------- | --------------------------- | ------ |
+| giao_ly_hon_nhan | PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN | 30        |                             |        |
+| giao_ly_can_ban  | PHẦN II. TRẮC NGHIỆM GIÁO LÝ CĂN BẢN  | 30        |                             |        |
+| kinh_bon         | PHẦN III. TRẮC NGHIỆM KINH BỔN        | 6         |                             |        |
+| dien_khuyet      | PHẦN IV – TỰ LUẬN                     | 4         | (điền đáp án vào chỗ trống) |        |
+| song_hon_nhan    | PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN      | 4         | (điền đáp án vào chỗ trống) | không  |
 
 Trên trang làm bài, mỗi câu hiển thị tiêu đề phần, hướng dẫn và "(số câu – số điểm)" của phần (tính từ các câu thực sự bốc), cùng điểm của câu.
 
@@ -162,7 +162,7 @@ curl -X POST https://<app>/api/admin/import -H "Authorization: Bearer $ADMIN_TOK
 curl -X POST https://<app>/api/admin/resync -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-- **Câu hỏi** và **các phần của đề** (tab `PhanThi`) được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người *chưa thi* cũng được (dòng cũ bị xóa, dòng mới được tạo); với người *đã thi*, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
+- **Câu hỏi** và **các phần của đề** (tab `PhanThi`) được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người _chưa thi_ cũng được (dòng cũ bị xóa, dòng mới được tạo); với người _đã thi_, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
 - Import sẽ **từ chối** khi đang có lượt thi chưa nộp, vì đề đã phát tham chiếu tới mã câu hỏi. Thêm `?force=1` nếu chắc chắn. Nếu Sheet có lỗi, import trả danh sách lỗi theo dòng và không ghi gì vào D1.
 - Resync đọc cột A của `KetQua` để tránh tạo hàng trùng. Lượt đã có trên Sheet thì chỉ cập nhật cột A–K, không đụng cột Điểm TL (L). Lượt vừa nộp chưa quá 2 phút sẽ được bỏ qua, vì bước đồng bộ ngay sau khi nộp có thể vẫn đang chạy.
 
@@ -178,7 +178,7 @@ npm run deploy:cron     # chạy mỗi 10 phút
 
 ## Luật thi (kiểm tra ở server)
 
-- **Định danh**: học viên *chọn đúng dòng của mình* trong danh sách (tìm khi gõ), không tự nhập thông tin. `luot_thi.hoc_vien_id` có `UNIQUE` nên mỗi dòng trong danh sách chỉ thi được một lần, kể cả khi hai request gửi cùng lúc. Họ tên, Tên Thánh, Giáo xứ, Giáo phận được sao vào `luot_thi` (bản gốc có dấu kèm bản chuẩn hóa) tại thời điểm bắt đầu thi.
+- **Định danh**: học viên _chọn đúng dòng của mình_ trong danh sách (tìm khi gõ), không tự nhập thông tin. `luot_thi.hoc_vien_id` có `UNIQUE` nên mỗi dòng trong danh sách chỉ thi được một lần, kể cả khi hai request gửi cùng lúc. Họ tên, Tên Thánh, Giáo xứ, Giáo phận được sao vào `luot_thi` (bản gốc có dấu kèm bản chuẩn hóa) tại thời điểm bắt đầu thi.
 - **Thời gian** chỉ tính từ `started_at` do server ghi. Chưa đủ T/2 thì không được nộp. Nộp sau T + dung sai thì vẫn nhận nhưng gắn `nop_tre`, và chỉ chấm các đáp án đã lưu trước hạn (sau hạn thì `save` bị từ chối).
 - **Phiên thi**: token ngẫu nhiên nằm trong cookie httpOnly, DB chỉ lưu SHA-256 của token. Mọi thao tác save/submit đều phải có token này.
 - **Nộp bài idempotent**: dùng `UPDATE … WHERE trang_thai = 'dang_thi'` (và `diem_tn IS NULL`) trong cùng một batch, nên nộp lặp sẽ trả lại đúng kết quả cũ.
@@ -192,9 +192,9 @@ npm run deploy:cron     # chạy mỗi 10 phút
   ```
 - **Bỏ dở không nộp**: nếu học viên quay lại (cùng trình duyệt) sau khi hết giờ, trang sẽ tự nộp ngay. Nếu đã quá T + dung sai thì bài được đánh dấu nộp trễ và chấm theo đáp án đã lưu. Lượt không bao giờ quay lại vẫn ở trạng thái `dang_thi`; xem bằng `SELECT * FROM luot_thi WHERE trang_thai='dang_thi'`.
 - **Đã thi rồi**: khi tìm thấy tên một người đã có lượt thi, kết quả hiện "Đã có lượt thi, hãy liên hệ giám thị" và không chọn được. Điểm chỉ xem được ở trình duyệt đã dùng để thi.
-- **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng *cả* tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.
+- **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng _cả_ tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.
 - **Ai cũng tìm được tên trong danh sách**: ô tìm không yêu cầu đăng nhập, nên ai mở trang cũng thấy tên, Giáo xứ và Giáo phận của người khớp (tối đa 8 dòng, phải gõ từ 2 ký tự, không hiện ngày sinh hay điểm). Nếu danh sách cần giữ kín, đặt cả trang sau Cloudflare Access hoặc chỉ mở link cho lớp thi.
-- **Logo/favicon**: `src/lib/assets/gpthaibinh90years.webp`, hiển thị ở đầu trang chào và dùng làm favicon (`+layout.svelte`). 
+- **Logo/favicon**: `src/lib/assets/gpthaibinh90years.webp`, hiển thị ở đầu trang chào và dùng làm favicon (`+layout.svelte`).
 - **Danh sách từ CSV không tách Tên Thánh**: toàn bộ chuỗi (ví dụ "Vinh Sơn Đỗ Văn Hậu") được lưu ở cột Họ và tên, cột Tên Thánh trên Sheet kết quả sẽ để trống. Muốn tách riêng, dùng tab `HocVien` với cột A là Tên Thánh.
 - **Trang chào**: tiêu đề và phụ đề nằm ở hai hằng `TIEU_DE`, `PHU_DE` đầu file `src/routes/+page.svelte`.
 - **Quota Sheets** là khoảng 60 lượt ghi mỗi phút. Khi nhiều người nộp cùng lúc, có thể một số bài không lên Sheet ngay (sau khi đã retry). Các bài đó vẫn giữ `sync_pending = 1` để resync hoặc cron đẩy lên sau. Resync gom nhiều hàng vào một request.

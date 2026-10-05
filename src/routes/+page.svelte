@@ -8,8 +8,8 @@
 	const tt = $derived(data.thongTin);
 
 	// Chữ mặc định khi chưa nạp tab ThongTin từ Google Sheet.
-	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi';
-	const PHU_DE = 'Hãy nhập tên của bạn để tìm và bắt đầu làm bài.';
+	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi Giáo Lý Hôn Nhân (2026)';
+	const PHU_DE = '(thời gian làm bài 90 phút)';
 
 	type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string; da_thi: boolean };
 	const ten = (h: HocVien) => [h.ten_thanh, h.ho_ten].filter(Boolean).join(' ');

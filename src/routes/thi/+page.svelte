@@ -244,13 +244,13 @@
 				<div>
 					<p class="font-semibold">
 						{nhomHienTai.ten || nhomHienTai.nhom}
-						<span class="text-sm font-normal opacity-85">({nhomHienTai.chiSo.length} câu – {nhomHienTai.diem} điểm)</span>
+						<!-- <span class="text-sm font-normal opacity-85">({nhomHienTai.chiSo.length} câu – {nhomHienTai.diem} điểm)</span> -->
 					</p>
 					{#if nhomHienTai.huong_dan}<p class="text-sm opacity-85">{nhomHienTai.huong_dan}</p>{/if}
 				</div>
 			{/if}
-			<p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {NHAN_LOAI[q.loai]} · {q.diem} điểm</p>
-			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}</h2>
+			<!-- <p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {NHAN_LOAI[q.loai]} · {q.diem} điểm</p> -->
+			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}<span class="text-sm font-normal">({q.diem} điểm)</span></h2>
 			{#if q.lua_chon}
 				<div class="flex flex-col gap-2" role="radiogroup" aria-labelledby="noi-dung">
 					{#each q.lua_chon as lc, i (i)}
