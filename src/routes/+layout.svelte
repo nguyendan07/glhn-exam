@@ -11,6 +11,6 @@
 	<title>Thi trực tuyến</title>
 </svelte:head>
 
-<main class="mx-auto max-w-[680px] p-4">
+<main class="mx-auto max-w-2xl p-4">
 	{@render children()}
 </main>

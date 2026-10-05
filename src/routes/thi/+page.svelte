@@ -158,38 +158,41 @@
 
 <svelte:head><title>Làm bài thi</title></svelte:head>
 
-<header class="card sticky top-2 z-10 mb-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
-	<div class="flex min-w-0 flex-col">
-		<strong>{tt.ten_thanh} {tt.ho_ten}</strong>
-		<span class="text-sm text-muted">{tt.giao_xu}, {tt.giao_phan}</span>
-	</div>
-	<div
-		class={['self-center text-2xl font-bold tabular-nums', conLai < 5 * 60_000 && 'text-danger']}
-		role="timer"
-		aria-label="Thời gian còn lại"
-	>
-		{dinhDang(conLai)}
-	</div>
-	<div class="col-span-full text-sm text-muted" aria-live="polite">
-		{#if !online}
-			<span class="text-danger">Mất mạng — bài vẫn được giữ trên máy, sẽ lưu khi có mạng lại</span>
-		{:else if luu === 'dang_luu'}
-			<span>Đang lưu...</span>
-		{:else if luu === 'chua_luu'}
-			<span>Chưa lưu</span>
-		{:else if luu === 'loi'}
-			<span class="text-danger">Lưu lỗi — sẽ thử lại</span>
-		{:else}
-			<span class="text-ok">Đã lưu</span>
-		{/if}
-		<span>· Đã trả lời {soDaTraLoi}/{ds.length}</span>
+<header class="card card-border sticky top-2 z-10 mb-4 bg-base-100">
+	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
+		<div class="flex min-w-0 flex-col">
+			<strong>{tt.ten_thanh} {tt.ho_ten}</strong>
+			<span class="text-sm opacity-70">{tt.giao_xu}, {tt.giao_phan}</span>
+		</div>
+		<div
+			class={['self-center text-2xl font-bold tabular-nums', conLai < 5 * 60_000 && 'text-error']}
+			role="timer"
+			aria-label="Thời gian còn lại"
+		>
+			{dinhDang(conLai)}
+		</div>
+		<div class="col-span-full flex flex-wrap items-center gap-2" aria-live="polite">
+			{#if !online}
+				<span class="badge badge-error">Mất mạng</span>
+				<span class="text-sm">Bài vẫn được giữ trên máy, sẽ lưu khi có mạng lại.</span>
+			{:else if luu === 'dang_luu'}
+				<span class="badge">Đang lưu...</span>
+			{:else if luu === 'chua_luu'}
+				<span class="badge badge-warning">Chưa lưu</span>
+			{:else if luu === 'loi'}
+				<span class="badge badge-error">Lưu lỗi — sẽ thử lại</span>
+			{:else}
+				<span class="badge badge-success">Đã lưu</span>
+			{/if}
+			<span class="text-sm opacity-70">Đã trả lời {soDaTraLoi}/{ds.length}</span>
+		</div>
 	</div>
 </header>
 
-<nav class="mb-4 grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1.5" aria-label="Danh sách câu hỏi">
+<nav class="mb-4 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2" aria-label="Danh sách câu hỏi">
 	{#each ds as c, i (c.ma)}
 		<button
-			class={['btn px-0 py-1.5', daTraLoi(c.ma) && 'border-ok bg-ok/15', i === hienTai && 'font-bold outline-2 outline-primary']}
+			class={['btn', i === hienTai ? 'btn-primary' : daTraLoi(c.ma) && 'btn-soft btn-success']}
 			aria-current={i === hienTai ? 'step' : undefined}
 			aria-label={`Câu ${i + 1}${daTraLoi(c.ma) ? ', đã trả lời' : ''}`}
 			onclick={() => (hienTai = i)}>{i + 1}</button
@@ -198,74 +201,75 @@
 </nav>
 
 {#if q}
-	<section class="card">
-		<p class="text-sm text-muted">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
-		<h2 id="noi-dung" class="mt-1 mb-4 text-lg font-semibold whitespace-pre-wrap">{q.noi_dung}</h2>
-		{#if q.lua_chon}
-			<div role="radiogroup" aria-labelledby="noi-dung">
-				{#each q.lua_chon as lc, i (i)}
-					<label
-						class={[
-							'mb-2 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3',
-							dapAn[q.ma] === i ? 'border-primary bg-primary/10' : 'border-line'
-						]}
-					>
-						<input
-							type="radio"
-							class="mt-1 size-[1.1rem] accent-primary"
-							name={q.ma}
-							checked={dapAn[q.ma] === i}
-							onchange={() => {
-								dapAn[q.ma] = i;
-								daSua();
-							}}
-						/>
-						<span><b>{String.fromCharCode(65 + i)}.</b> {lc}</span>
-					</label>
-				{/each}
+	<section class="card card-border bg-base-100">
+		<div class="card-body">
+			<p class="text-sm opacity-70">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
+			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}</h2>
+			{#if q.lua_chon}
+				<div class="flex flex-col gap-2" role="radiogroup" aria-labelledby="noi-dung">
+					{#each q.lua_chon as lc, i (i)}
+						<label
+							class={[
+								'rounded-box flex cursor-pointer items-start gap-3 border p-3',
+								dapAn[q.ma] === i ? 'border-primary bg-primary/10' : 'border-base-300'
+							]}
+						>
+							<input
+								type="radio"
+								class="radio radio-primary"
+								name={q.ma}
+								checked={dapAn[q.ma] === i}
+								onchange={() => {
+									dapAn[q.ma] = i;
+									daSua();
+								}}
+							/>
+							<span><b>{String.fromCharCode(65 + i)}.</b> {lc}</span>
+						</label>
+					{/each}
+				</div>
+			{:else}
+				<textarea
+					class="textarea w-full"
+					rows="10"
+					maxlength="5000"
+					aria-labelledby="noi-dung"
+					value={tuLuan[q.ma] ?? ''}
+					oninput={(e) => {
+						tuLuan[q.ma] = e.currentTarget.value;
+						daSua(false);
+					}}
+				></textarea>
+				<p class="text-sm opacity-70">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
+			{/if}
+			<div class="card-actions mt-2 justify-between">
+				<button class="btn" disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>
+				<button class="btn" disabled={hienTai === ds.length - 1} onclick={() => hienTai++}>Câu sau →</button>
 			</div>
-		{:else}
-			<textarea
-				class="input"
-				rows="10"
-				maxlength="5000"
-				aria-labelledby="noi-dung"
-				value={tuLuan[q.ma] ?? ''}
-				oninput={(e) => {
-					tuLuan[q.ma] = e.currentTarget.value;
-					daSua(false);
-				}}
-			></textarea>
-			<p class="text-sm text-muted">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
-		{/if}
-		<div class="mt-4 flex justify-between gap-2">
-			<button class="btn" disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>
-			<button class="btn" disabled={hienTai === ds.length - 1} onclick={() => hienTai++}>Câu sau →</button>
 		</div>
 	</section>
 {/if}
 
-<div class="mt-6 mb-12 text-center">
-	{#if thongBao}<p class="mb-2 text-danger" role="alert">{thongBao}</p>{/if}
-	<button class="btn btn-primary w-full" disabled={conChoNop > 0 || dangNop} onclick={() => hopXacNhan.showModal()}>
-		{dangNop ? 'Đang nộp...' : 'Nộp bài'}
+<div class="mt-6 mb-12 flex flex-col gap-2 text-center">
+	{#if thongBao}<div class="alert alert-error" role="alert">{thongBao}</div>{/if}
+	<button class="btn btn-primary btn-block" disabled={conChoNop > 0 || dangNop} onclick={() => hopXacNhan.showModal()}>
+		{#if dangNop}<span class="loading loading-spinner"></span>Đang nộp...{:else}Nộp bài{/if}
 	</button>
 	{#if conChoNop > 0}
-		<p class="mt-2 text-sm text-muted">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
+		<p class="text-sm opacity-70">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
 	{/if}
 </div>
 
-<dialog
-	bind:this={hopXacNhan}
-	aria-labelledby="xn-title"
-	class="m-auto w-[min(420px,calc(100vw-2rem))] space-y-2 rounded-xl border border-line bg-card p-5 text-ink backdrop:bg-black/50"
->
-	<h2 id="xn-title" class="text-lg font-semibold">Nộp bài?</h2>
-	<p>Bạn đã trả lời {soDaTraLoi}/{ds.length} câu.</p>
-	{#if soDaTraLoi < ds.length}<p class="text-danger">Còn {ds.length - soDaTraLoi} câu chưa trả lời.</p>{/if}
-	<p>Sau khi nộp sẽ không sửa được nữa.</p>
-	<div class="mt-4 flex justify-between gap-2">
-		<button class="btn" onclick={() => hopXacNhan.close()}>Làm tiếp</button>
-		<button class="btn btn-primary" onclick={nop} disabled={dangNop}>Nộp bài</button>
+<dialog bind:this={hopXacNhan} class="modal" aria-labelledby="xn-title">
+	<div class="modal-box">
+		<h2 id="xn-title" class="text-lg font-bold">Nộp bài?</h2>
+		<p class="py-2">Bạn đã trả lời {soDaTraLoi}/{ds.length} câu.</p>
+		{#if soDaTraLoi < ds.length}<p class="text-error">Còn {ds.length - soDaTraLoi} câu chưa trả lời.</p>{/if}
+		<p class="py-2">Sau khi nộp sẽ không sửa được nữa.</p>
+		<div class="modal-action">
+			<button class="btn" onclick={() => hopXacNhan.close()}>Làm tiếp</button>
+			<button class="btn btn-primary" onclick={nop} disabled={dangNop}>Nộp bài</button>
+		</div>
 	</div>
+	<form method="dialog" class="modal-backdrop"><button>Đóng</button></form>
 </dialog>
