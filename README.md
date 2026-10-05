@@ -103,7 +103,14 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
 ### Bước 5. Nạp đề thi và danh sách học viên
 
 1. Tạo file Sheet (xem [Tạo nhanh file Sheet từ các file CSV](#tạo-nhanh-file-sheet-từ-các-file-csv)), tải lên Google Sheets và chia sẻ cho email service account (quyền _Người chỉnh sửa_).
-2. Gọi import (thay địa chỉ bằng URL của Worker, xem ở trang Worker hoặc **Settings → Domains & Routes**):
+2. Mở trang **`https://glhn-exam.<tên-tài-khoản>.workers.dev/admin`** (thay bằng URL của Worker, xem ở trang Worker hoặc **Settings → Domains & Routes**), nhập **mã quản trị** (`ADMIN_TOKEN` ở Bước 4) rồi bấm **Nạp đề thi và danh sách học viên**. Trang hiển thị kết quả, cảnh báo và lỗi (ví dụ Google từ chối quyền) ngay trên màn hình.
+   - Kết quả đúng: "Đã nạp thành công. 74 câu hỏi, 5 phần thi, 39 học viên. Thời gian làm bài: 90 phút", và không có mục "Cần xem lại". Nếu có cảnh báo (thiếu câu, nhóm không có trong `PhanThi`…), sửa Sheet rồi nạp lại. Nạp lại bao nhiêu lần cũng được.
+   - Đang có lượt thi chưa nộp thì trang hỏi lại bằng nút **Vẫn nạp (bỏ qua kiểm tra)**.
+   - Nút **Đồng bộ lại** đẩy các bài đã nộp nhưng chưa lên được Google Sheet.
+
+   Trang này công khai nhưng mọi thao tác đều cần mã quản trị. Trang không lưu mã trong trình duyệt.
+
+   Cách khác bằng dòng lệnh:
    ```bash
    curl -X POST https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import \
      -H "Content-Type: application/json" -H "Authorization: Bearer <ADMIN_TOKEN>" -d '{}'
@@ -113,8 +120,7 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
    Invoke-RestMethod -Method Post -Uri "https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import" `
      -ContentType "application/json" -Headers @{ Authorization = "Bearer <ADMIN_TOKEN>" } -Body "{}"
    ```
-   **Bắt buộc có `Content-Type: application/json`** (và một body, dù chỉ là `{}`). Thiếu header này, hoặc gửi kiểu form, SvelteKit chặn ngay với lỗi `Cross-site POST form submissions are forbidden` (HTTP 403) trước cả khi kiểm tra token. Dùng Postman thì chọn Body → raw → JSON.
-   Kết quả đúng có dạng `{"cau_hoi":74,"phan_thi":5,"hoc_vien":39,"thoi_luong_phut":90,"canh_bao":[]}`. Nếu `canh_bao` có nội dung (thiếu câu, nhóm không có trong `PhanThi`…), hãy sửa Sheet rồi import lại. Import chạy lại được nhiều lần.
+   **Bắt buộc có `Content-Type: application/json`** (và một body, dù chỉ là `{}`). Thiếu header này, hoặc gửi kiểu form, SvelteKit chặn ngay với lỗi `Cross-site POST form submissions are forbidden` (HTTP 403) trước cả khi kiểm tra token. Trang `/admin` đã gửi đúng nên không gặp lỗi này.
 
 ### Bước 6. Kiểm tra trước ngày thi
 
@@ -148,18 +154,18 @@ Rồi thêm 3 secrets `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY`, `SHEET_ID` cho
 
 ### Xử lý sự cố
 
-| Triệu chứng                                  | Nguyên nhân thường gặp                                                               | Cách xử lý                             |
-| -------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
-| Build lỗi, nhắc tên Worker không khớp        | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc`                         | Đổi tên cho trùng                      |
-| Build xong nhưng deploy lỗi về D1            | `database_id` sai hoặc chưa phải D1 của tài khoản này                                | Sửa ở Bước 1, push lại                 |
-| Trang báo lỗi 500, log có `no such table`    | Chưa chạy migration                                                                  | Bước 3                                 |
-| Trang báo lỗi 500, log có `Chưa có cấu hình` | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                               | Bước 3                                 |
-| `/api/admin/…` trả 403 `Cross-site POST form submissions are forbidden` | Gọi POST thiếu `Content-Type: application/json` hoặc gửi kiểu form (cơ chế chống CSRF của SvelteKit, chỉ có ở bản chạy thật) | Thêm `-H "Content-Type: application/json" -d '{}'` (xem Bước 5) |
-| `/api/admin/…` trả 401                       | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …` | Bước 4                                 |
-| Import trả 400 "Không tìm thấy tab …"        | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                 | Sửa tên tab                            |
-| Import trả 500, log có `Sheets … 403`        | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                    | Chia sẻ lại, kiểm tra secrets          |
-| Gõ tên không ra gợi ý                        | Chưa import tab `HocVien`                                                            | Bước 5                                 |
-| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi | Phần cần nhiều câu hơn ngân hàng có                                                  | Xem `canh_bao` của import, bổ sung câu |
+| Triệu chứng                                                             | Nguyên nhân thường gặp                                                                                                       | Cách xử lý                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Build lỗi, nhắc tên Worker không khớp                                   | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc`                                                                 | Đổi tên cho trùng                                               |
+| Build xong nhưng deploy lỗi về D1                                       | `database_id` sai hoặc chưa phải D1 của tài khoản này                                                                        | Sửa ở Bước 1, push lại                                          |
+| Trang báo lỗi 500, log có `no such table`                               | Chưa chạy migration                                                                                                          | Bước 3                                                          |
+| Trang báo lỗi 500, log có `Chưa có cấu hình`                            | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                                                                       | Bước 3                                                          |
+| `/api/admin/…` trả 403 `Cross-site POST form submissions are forbidden` | Gọi POST thiếu `Content-Type: application/json` hoặc gửi kiểu form (cơ chế chống CSRF của SvelteKit, chỉ có ở bản chạy thật) | Dùng trang `/admin`, hoặc thêm `-H "Content-Type: application/json" -d '{}'` (xem Bước 5) |
+| `/api/admin/…` trả 401                                                  | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …`                                         | Bước 4                                                          |
+| Import trả 400 "Không tìm thấy tab …"                                   | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                                                         | Sửa tên tab                                                     |
+| Import trả 500, log có `Sheets … 403`                                   | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                                                            | Chia sẻ lại, kiểm tra secrets                                   |
+| Gõ tên không ra gợi ý                                                   | Chưa import tab `HocVien`                                                                                                    | Bước 5                                                          |
+| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi                            | Phần cần nhiều câu hơn ngân hàng có                                                                                          | Xem `canh_bao` của import, bổ sung câu                          |
 
 ### Cách khác: dùng dòng lệnh thay cho Git
 
@@ -260,6 +266,8 @@ Mã lượt · Tên Thánh · Họ và tên · Giáo xứ · Giáo phận · Gi�
 Mọi chuỗi do học viên nhập mà bắt đầu bằng `=`, `+`, `-`, `@` đều được thêm `'` phía trước để chống formula injection.
 
 ### Import và resync
+
+Dùng trang `/admin` (xem Bước 5 phần triển khai) hoặc gọi API:
 
 ```bash
 # Nạp CauHoi, PhanThi, HocVien và ThongTin từ Sheet vào D1

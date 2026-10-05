@@ -11,6 +11,25 @@ export async function laAdmin(request: Request, adminToken: string | undefined):
 	return (await sha256Hex(h.slice(7))) === (await sha256Hex(adminToken));
 }
 
+/**
+ * Bọc một thao tác quản trị: kiểm tra token (401), chạy, và trả lỗi dạng JSON { error } (500) thay vì trang lỗi chung,
+ * để trang /admin hiển thị được nguyên nhân thật (ví dụ Google từ chối quyền). Chỉ người đã qua bước token mới thấy nội dung lỗi.
+ */
+export async function chayAdmin(
+	request: Request,
+	adminToken: string | undefined,
+	viec: () => Promise<{ status: number; body: unknown }>
+): Promise<Response> {
+	if (!(await laAdmin(request, adminToken))) return Response.json({ error: 'Không có quyền.' }, { status: 401 });
+	try {
+		const r = await viec();
+		return Response.json(r.body, { status: r.status });
+	} catch (e) {
+		console.error('Lỗi thao tác quản trị:', e);
+		return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+	}
+}
+
 /** Đọc tab tùy chọn; trả null nếu tab không tồn tại. */
 async function docTab(env: SheetEnv, range: string): Promise<string[][] | null> {
 	try {
