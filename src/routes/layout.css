@@ -106,3 +106,16 @@
 		0 0 8px rgb(0 0 0 / 0.2),
 		0 32px 64px rgb(0 0 0 / 0.24);
 }
+
+/* Danh sách kết quả tìm: tô nền xanh thương hiệu khi rê chuột / focus bàn phím, đậm hơn khi nhấn. */
+.menu li > button {
+	cursor: pointer;
+	transition: background-color 100ms ease;
+}
+.menu li > button:hover,
+.menu li > button:focus-visible {
+	background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+.menu li > button:active {
+	background-color: color-mix(in oklab, var(--color-primary) 20%, transparent);
+}
