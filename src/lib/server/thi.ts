@@ -1,4 +1,4 @@
-import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe } from './exam';
+import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe, type Phan } from './exam';
 import { chuanHoa, GIOI_HAN, lamSachVanBan } from './normalize';
 
 export const COOKIE = 'phien_thi';
@@ -29,19 +29,20 @@ export async function sha256Hex(s: string): Promise<string> {
 	return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
-type CauHinh = { thoiLuong: number; dungSai: number; soCau: Record<string, number> };
+type PhanCauHinh = Phan & { ten: string; huong_dan: string };
+type CauHinh = { thoiLuong: number; dungSai: number; phan: PhanCauHinh[] };
 
 async function docCauHinh(db: D1Database): Promise<CauHinh> {
 	const [c, n] = await db.batch([
 		db.prepare('SELECT thoi_luong_giay, dung_sai_giay FROM cau_hinh WHERE id = 1'),
-		db.prepare('SELECT nhom, so_cau FROM cau_hinh_nhom')
+		db.prepare('SELECT nhom, so_cau, ten, huong_dan, xao_tron FROM cau_hinh_nhom ORDER BY thu_tu, nhom')
 	]);
 	const row = c.results[0] as { thoi_luong_giay: number; dung_sai_giay: number } | undefined;
 	if (!row) throw new Error('Chưa có cấu hình (bảng cau_hinh).');
 	return {
 		thoiLuong: row.thoi_luong_giay,
 		dungSai: row.dung_sai_giay,
-		soCau: Object.fromEntries((n.results as { nhom: string; so_cau: number }[]).map((r) => [r.nhom, r.so_cau]))
+		phan: (n.results as (Omit<PhanCauHinh, 'xao_tron'> & { xao_tron: number })[]).map((r) => ({ ...r, xao_tron: r.xao_tron === 1 }))
 	};
 }
 
@@ -127,8 +128,8 @@ export async function batDau(db: D1Database, body: unknown, token: string | unde
 	if (cu) return tiepTuc(db, cu, token);
 
 	const cfg = await docCauHinh(db);
-	const { results: nganHang } = await db.prepare('SELECT * FROM cau_hoi').all<CauHoi>();
-	const de = taoDe(nganHang, cfg.soCau);
+	const { results: nganHang } = await db.prepare('SELECT * FROM cau_hoi ORDER BY rowid').all<CauHoi>();
+	const de = taoDe(nganHang, cfg.phan);
 	const id = crypto.randomUUID();
 	const moi = taoToken();
 
@@ -208,11 +209,12 @@ export async function trangThaiThi(db: D1Database, l: Luot, now = Date.now()) {
 	const t = thoiGian(l.started_at, now, cfg.thoiLuong, cfg.dungSai);
 	return {
 		thong_tin: thongTin(l),
+		phan: cfg.phan.map(({ nhom, ten, huong_dan }) => ({ nhom, ten, huong_dan })),
 		cau_hoi: de.flatMap((m) => {
 			const q = ch.get(m.ma);
 			if (!q) return [];
 			const goc: string[] | null = q.lua_chon ? JSON.parse(q.lua_chon) : null;
-			return [{ ma: q.ma, loai: q.loai, noi_dung: q.noi_dung, lua_chon: m.thu_tu && goc ? m.thu_tu.map((i) => goc[i]) : null }];
+			return [{ ma: q.ma, loai: q.loai, phan: q.nhom, diem: q.diem, noi_dung: q.noi_dung, lua_chon: m.thu_tu && goc ? m.thu_tu.map((i) => goc[i]) : null }];
 		}),
 		dap_an_tn: JSON.parse(l.dap_an_tn) as Record<string, number>,
 		tu_luan: JSON.parse(l.tu_luan) as Record<string, string>,

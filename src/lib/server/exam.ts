@@ -1,6 +1,6 @@
 export type CauHoi = {
 	ma: string;
-	loai: 'TN' | 'TL';
+	loai: 'TN' | 'DK' | 'TL';
 	nhom: string;
 	noi_dung: string;
 	lua_chon: string | null; // JSON string[]
@@ -30,15 +30,18 @@ export function shuffle<T>(a: readonly T[]): T[] {
 	return r;
 }
 
-/** Bốc soCau[nhom] câu mỗi nhóm, xáo thứ tự câu và thứ tự lựa chọn TN. */
-export function taoDe(nganHang: readonly CauHoi[], soCau: Record<string, number>): MucDe[] {
+/** Một phần của đề (theo thứ tự). xao_tron=false: lấy so_cau câu đầu của nhóm theo thứ tự trong ngân hàng, không xáo. */
+export type Phan = { nhom: string; so_cau: number; xao_tron: boolean };
+
+/** Bốc đề theo từng phần, giữ thứ tự các phần; xáo thứ tự câu trong phần (nếu xao_tron) và thứ tự lựa chọn của câu TN. */
+export function taoDe(nganHang: readonly CauHoi[], phan: readonly Phan[]): MucDe[] {
 	const chon: CauHoi[] = [];
-	for (const [nhom, n] of Object.entries(soCau)) {
+	for (const { nhom, so_cau: n, xao_tron } of phan) {
 		const pool = nganHang.filter((q) => q.nhom === nhom);
 		if (pool.length < n) throw new Error(`Nhóm "${nhom}" cần ${n} câu nhưng ngân hàng chỉ có ${pool.length}.`);
-		chon.push(...shuffle(pool).slice(0, n));
+		chon.push(...(xao_tron ? shuffle(pool) : pool).slice(0, n));
 	}
-	return shuffle(chon).map((q) =>
+	return chon.map((q) =>
 		q.loai === 'TN'
 			? { ma: q.ma, thu_tu: shuffle([...JSON.parse(q.lua_chon!).keys()] as number[]) }
 			: { ma: q.ma }

@@ -1,13 +1,14 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/merriweather';
 @plugin 'daisyui' {
 	themes: false;
 }
 
-/* Fluent 2 (Microsoft): Segoe UI, chữ 14/20, ô và nút cao 32px, bo góc 4px (điều khiển) / 8px (thẻ) / 12px (hộp thoại),
+/* Fluent 2 (Microsoft) với font Merriweather (tự lưu trữ), chữ 14/22, ô và nút cao 32px, bo góc 4px (điều khiển) / 8px (thẻ) / 12px (hộp thoại),
    viền trung tính #d1d1d1, ô nhập có viền dưới đậm #616161 chuyển sang màu thương hiệu khi focus, thẻ có bóng nhẹ.
    Màu thương hiệu theo logo Giáo phận Thái Bình: xanh đậm #273ca7 (chữ, số 9), xanh dương (sóng, #1670c0 để chữ trắng đủ tương phản), vàng cát #dcbd8e (thuyền). */
 @theme {
-	--font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', 'Noto Sans', sans-serif;
+	--font-sans: 'Merriweather Variable', Georgia, 'Times New Roman', serif;
 }
 
 @plugin 'daisyui/theme' {
@@ -47,7 +48,7 @@
 @layer base {
 	body {
 		font-size: 14px;
-		line-height: 20px;
+		line-height: 22px;
 	}
 	h1,
 	h2 {

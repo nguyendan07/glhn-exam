@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nhapTuSheet, parseCauHoi } from './admin';
+import { nhapTuSheet, parseCauHoi, parsePhanThi } from './admin';
 import { parseHocVien } from './hoc-vien';
 import { dongBoLai, escapeCell, fetchRetry, hangKetQua } from './sheets';
 import { d1Test } from './testing/d1';
@@ -105,6 +105,38 @@ describe('import', () => {
 		expect(r.loi).toEqual(['CauHoi dòng 4: Đáp án phải là chữ cái ứng với một lựa chọn.', 'CauHoi dòng 5: mã trống hoặc trùng.']);
 	});
 
+	it('parse câu hỏi loại DK (điền vào chỗ trống) và TL, không cần đáp án/lựa chọn', () => {
+		const r = parseCauHoi([['D1', 'dk', 'p4', 'Điền ______', '', '2'], ['T1', 'TL', 'p5', 'Viết', '', '14']]);
+		expect(r.loi).toEqual([]);
+		expect(r.ds).toEqual([
+			{ ma: 'D1', loai: 'DK', nhom: 'p4', noi_dung: 'Điền ______', lua_chon: null, dap_an: null, diem: 2 },
+			{ ma: 'T1', loai: 'TL', nhom: 'p5', noi_dung: 'Viết', lua_chon: null, dap_an: null, diem: 14 }
+		]);
+		expect(parseCauHoi([['X', 'ABC', 'g', 'n']]).loi[0]).toMatch(/TN, DK/);
+	});
+
+	it('parse tab PhanThi: thứ tự dòng là thứ tự phần, cột Xáo, báo lỗi theo dòng', () => {
+		const r = parsePhanThi([
+			['hon_nhan', 'PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN', '30'],
+			['dien_khuyet', 'PHẦN IV – TỰ LUẬN', '4', '(điền đáp án vào chỗ trống)', ''],
+			['song_hon_nhan', 'PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN', '4', '(điền đáp án vào chỗ trống)', 'Không'],
+			[],
+			['hon_nhan', 'trùng', '1'],
+			['x', 'Sai số câu', '3.5'],
+			['y', 'Sai xáo', '1', '', 'có thể']
+		]);
+		expect(r.ds).toEqual([
+			{ nhom: 'hon_nhan', ten: 'PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN', so_cau: 30, huong_dan: '', thu_tu: 1, xao_tron: 1 },
+			{ nhom: 'dien_khuyet', ten: 'PHẦN IV – TỰ LUẬN', so_cau: 4, huong_dan: '(điền đáp án vào chỗ trống)', thu_tu: 2, xao_tron: 1 },
+			{ nhom: 'song_hon_nhan', ten: 'PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN', so_cau: 4, huong_dan: '(điền đáp án vào chỗ trống)', thu_tu: 3, xao_tron: 0 }
+		]);
+		expect(r.loi).toEqual([
+			'PhanThi dòng 6: Nhóm trống hoặc trùng.',
+			'PhanThi dòng 7: Số câu phải là số nguyên không âm.',
+			'PhanThi dòng 8: cột Xáo chỉ nhận "có" hoặc "không".'
+		]);
+	});
+
 	it('parse học viên: tên Thánh có thể trống, đánh số các dòng trùng, báo lỗi theo dòng', () => {
 		const r = parseHocVien([
 			['Phêrô', 'Nguyễn Văn An', 'Tân Định', 'Sài Gòn'],
@@ -119,9 +151,10 @@ describe('import', () => {
 		expect(r.loi).toEqual(['HocVien dòng 6: thiếu Họ và tên.']);
 	});
 
-	const sheet = (hocVien: string[][]) =>
+	const sheet = (hocVien: string[][], phanThi = [['kinh_thanh', 'PHẦN I', '1', 'hướng dẫn'], ['tu_luan', 'PHẦN II', '0']]) =>
 		gaFetch((url) => {
-			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'kinh_thanh', 'Hỏi', 'A', '2', 'Đúng', 'Sai']] };
+			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'kinh_thanh', 'Hỏi', 'A', '2', 'Đúng', 'Sai'], ['Z1', 'TL', 'khac', 'Nhóm chưa khai báo']] };
+			if (url.includes('PhanThi!')) return { values: phanThi };
 			if (url.includes('HocVien!')) return { values: hocVien };
 		});
 
@@ -131,9 +164,15 @@ describe('import', () => {
 		const env = await moiEnv();
 		const r = await nhapTuSheet(db, env, false);
 		expect(r.status).toBe(200);
-		expect(r.body).toMatchObject({ cau_hoi: 1, hoc_vien: 2 });
+		expect(r.body).toMatchObject({ cau_hoi: 2, phan_thi: 2, hoc_vien: 2 });
+		expect((r.body as any).canh_bao).toEqual(['Nhóm "khac" có 1 câu nhưng không nằm trong tab PhanThi nên sẽ không bao giờ được bốc.']);
 		expect(await db.prepare('SELECT * FROM cau_hoi').all().then((x) => x.results)).toEqual([
-			{ ma: 'N1', loai: 'TN', nhom: 'kinh_thanh', noi_dung: 'Hỏi', lua_chon: '["Đúng","Sai"]', dap_an: 0, diem: 2 }
+			{ ma: 'N1', loai: 'TN', nhom: 'kinh_thanh', noi_dung: 'Hỏi', lua_chon: '["Đúng","Sai"]', dap_an: 0, diem: 2 },
+			{ ma: 'Z1', loai: 'TL', nhom: 'khac', noi_dung: 'Nhóm chưa khai báo', lua_chon: null, dap_an: null, diem: 1 }
+		]);
+		expect(await db.prepare('SELECT nhom, so_cau, ten, huong_dan, thu_tu, xao_tron FROM cau_hinh_nhom ORDER BY thu_tu').all().then((x) => x.results)).toEqual([
+			{ nhom: 'kinh_thanh', so_cau: 1, ten: 'PHẦN I', huong_dan: 'hướng dẫn', thu_tu: 1, xao_tron: 1 },
+			{ nhom: 'tu_luan', so_cau: 0, ten: 'PHẦN II', huong_dan: '', thu_tu: 2, xao_tron: 1 }
 		]);
 		const hv = () => db.prepare('SELECT id, ten_thanh, ho_ten, giao_xu FROM hoc_vien_cho_phep ORDER BY id').all<any>().then((x) => x.results);
 		const [an, binh] = await hv();
@@ -141,7 +180,6 @@ describe('import', () => {
 		expect(calls.some((c) => c.method === 'PUT' && c.body.values[0][0] === 'Mã lượt')).toBe(true);
 
 		// Bình đã có lượt thi; import lại: An sửa giáo xứ, Bình bị xóa khỏi Sheet nhưng vẫn giữ vì đã thi, thêm Cúc.
-		await db.batch([db.prepare('DELETE FROM cau_hinh_nhom'), db.prepare(`INSERT INTO cau_hinh_nhom VALUES ('kinh_thanh', 1)`)]);
 		const st = await batDau(db, { hoc_vien_id: binh.id }, undefined);
 		await nopBai(db, st.token, undefined, Date.now() + 3_600_000);
 		sheet([['Phêrô', 'Nguyễn Văn An', 'GX Hai', 'GP Một'], ['Maria', 'Lê Thị Cúc']]);
@@ -157,10 +195,28 @@ describe('import', () => {
 		expect((await nhapTuSheet(db, env, false)).status).toBe(409);
 	});
 
+	it('cảnh báo khi phần cần nhiều câu hơn ngân hàng có', async () => {
+		sheet([['', 'Nguyễn Văn An']], [['kinh_thanh', 'PHẦN I', '5']]);
+		const r = await nhapTuSheet(d1Test(), await moiEnv(), false);
+		expect(r.status).toBe(200);
+		expect((r.body as any).canh_bao).toContain('Nhóm "kinh_thanh" cần 5 câu nhưng chỉ có 1.');
+	});
+
+	it('từ chối khi thiếu tab PhanThi', async () => {
+		gaFetch((url) => {
+			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'g', 'Hỏi', 'A', '', 'x', 'y']] };
+			if (url.includes('PhanThi!')) return new Response('{"error":{"message":"Unable to parse range: PhanThi!A2:E"}}', { status: 400 });
+		});
+		const r = await nhapTuSheet(d1Test(), await moiEnv(), false);
+		expect(r.status).toBe(400);
+		expect(r.body).toMatchObject({ error: expect.stringContaining('PhanThi') });
+	});
+
 	it('từ chối khi thiếu tab HocVien', async () => {
 		const db = d1Test();
 		gaFetch((url) => {
 			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'g', 'Hỏi', 'A', '', 'x', 'y']] };
+			if (url.includes('PhanThi!')) return { values: [['g', 'Phần', '1']] };
 			if (url.includes('HocVien!')) return new Response('{"error":{"message":"Unable to parse range: HocVien!A2:D"}}', { status: 400 });
 		});
 		const r = await nhapTuSheet(db, await moiEnv(), false);

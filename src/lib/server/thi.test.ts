@@ -141,6 +141,37 @@ describe('save / submit', () => {
 		return out;
 	}
 
+	it('đề gồm đúng 5 phần theo thứ tự, mỗi phần đủ số câu; Phần V cố định thứ tự Câu 1→4', async () => {
+		for (let k = 0; k < 15; k++) {
+			db = d1Test();
+			const { st } = await moLuot();
+			expect(st.phan.map((p) => p.nhom)).toEqual(['giao_ly_hon_nhan', 'giao_ly_can_ban', 'kinh_bon', 'dien_khuyet', 'song_hon_nhan']);
+			expect(st.phan[0].ten).toBe('PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN');
+			expect(st.phan[4]).toMatchObject({ ten: 'PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN', huong_dan: '(điền đáp án vào chỗ trống)' });
+			expect(st.cau_hoi.map((c) => c.phan)).toEqual([
+				...Array(3).fill('giao_ly_hon_nhan'), ...Array(3).fill('giao_ly_can_ban'), ...Array(2).fill('kinh_bon'),
+				...Array(2).fill('dien_khuyet'), ...Array(4).fill('song_hon_nhan')
+			]);
+			const v = st.cau_hoi.filter((c) => c.phan === 'song_hon_nhan');
+			expect(v.map((c) => [c.ma, c.loai, c.diem])).toEqual([['V1', 'DK', 2], ['V2', 'DK', 2], ['V3', 'DK', 2], ['V4', 'TL', 14]]);
+			expect(v[3].noi_dung).toMatch(/^Câu 4: Người đời thường cho rằng/);
+			expect(st.cau_hoi.filter((c) => c.loai === 'TN').every((c) => c.lua_chon!.length === 4)).toBe(true);
+			expect(st.cau_hoi.filter((c) => c.loai !== 'TN').every((c) => c.lua_chon === null)).toBe(true);
+		}
+	});
+
+	it('lưu và nộp câu điền vào chỗ trống (DK) và tự luận: được lưu nguyên, không tự chấm', async () => {
+		const { token } = await moLuot();
+		const dk = { V1: 'Sinh con cái và yêu thương nhau', V2: 'Duy nhất và bất khả phân ly', V4: 'x'.repeat(4999) };
+		expect((await luuBai(db, token, { tu_luan: dk }, t0 + 1000)).status).toBe(200);
+		expect((await luuBai(db, token, { tu_luan: { V4: 'x'.repeat(5001) } }, t0 + 1000)).status).toBe(400);
+		const k = await body((await nopBai(db, token, undefined, t0 + T / 2)).res);
+		expect(k.diem_tn).toBe(0);
+		expect(k.co_tu_luan).toBe(true);
+		const luu = JSON.parse((await db.prepare('SELECT tu_luan FROM bai_lam').first<any>()).tu_luan);
+		expect(luu).toEqual(dk);
+	});
+
 	it('chặn nộp sớm trước T/2', async () => {
 		const { token } = await moLuot();
 		const r = (await nopBai(db, token, undefined, t0 + T / 2 - 1000)).res;
@@ -154,12 +185,12 @@ describe('save / submit', () => {
 		await luuBai(db, token, { dap_an_tn: dung, tu_luan: {} }, t0 + 1000);
 		const r1 = await nopBai(db, token, { dap_an_tn: dung, tu_luan: {}, so_lan_roi_tab: 2 }, t0 + T / 2);
 		const k1 = await body(r1.res);
-		expect(k1.diem_tn).toBe(5);
-		expect(k1.diem_tn_toi_da).toBe(5);
+		expect(k1.diem_tn).toBe(10); // phần I: 3×1, phần II: 3×1, phần III: 2×2
+		expect(k1.diem_tn_toi_da).toBe(10);
 		expect(r1.moiNop).toBe(true);
 		const r2 = await nopBai(db, token, { dap_an_tn: {}, tu_luan: {} }, t0 + T / 2 + 5000);
 		const k2 = await body(r2.res);
-		expect(k2.diem_tn).toBe(5);
+		expect(k2.diem_tn).toBe(10);
 		expect(k2.submitted_at).toBe(k1.submitted_at);
 		expect(r2.moiNop).toBeUndefined();
 		expect((await luuBai(db, token, { dap_an_tn: {} }, t0 + T / 2 + 6000)).status).toBe(409);

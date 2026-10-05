@@ -14,7 +14,7 @@ src/lib/server/
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
   hoc-vien.ts            Đọc danh sách học viên (Sheet/CSV), sinh SQL nạp vào D1
 src/routes/
-  layout.css             Tailwind + daisyUI, theme light theo Fluent 2 (Segoe UI 14px, ô/nút cao 32px, bo góc 4/8/12px); màu theo logo (xanh #273ca7 chủ đạo)
+  layout.css             Tailwind + daisyUI, theme light theo Fluent 2 (ô/nút cao 32px, bo góc 4/8/12px), font Merriweather tự lưu trữ (@fontsource), màu theo logo (xanh #273ca7)
   +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
@@ -67,13 +67,25 @@ npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_gia
 
 ### Cấu hình đề thi
 
-Đổi trực tiếp trong D1 (bỏ `--remote` để chạy trên local):
+Đề gồm các **phần** theo thứ tự, mỗi phần bốc ngẫu nhiên số câu cấu hình từ một **nhóm** câu hỏi. Đề thật có 5 phần:
+
+| Phần | Nhóm gợi ý | Số câu | Điểm | Loại câu |
+|---|---|---|---|---|
+| I – Trắc nghiệm giáo lý hôn nhân | `giao_ly_hon_nhan` | 30 | 30 (1 điểm/câu) | `TN` |
+| II – Trắc nghiệm giáo lý căn bản | `giao_ly_can_ban` | 30 | 30 (1 điểm/câu) | `TN` |
+| III – Trắc nghiệm kinh bổn | `kinh_bon` | 6 | 12 (2 điểm/câu) | `TN` |
+| IV – Tự luận (điền vào chỗ trống) | `dien_khuyet` | 4 | 8 (2 điểm/câu) | `DK` |
+| V – Tự luận, sống hôn nhân | `song_hon_nhan` | 4 | 20 (2 + 2 + 2 + 14) | `DK` ×3, `TL` ×1 |
+
+Tổng 100 điểm: 72 điểm trắc nghiệm hệ thống tự chấm, 28 điểm (phần IV và V) giáo viên chấm trên Sheet. Phần V luôn đủ 4 câu **theo đúng thứ tự** (Câu 1 → 4, tắt xáo); các phần còn lại xáo thứ tự câu, và câu trắc nghiệm còn xáo cả thứ tự đáp án.
+
+Dữ liệu mẫu trong migration có đủ 5 phần và 4 câu thật của phần V, nhưng chỉ có vài câu mẫu cho phần I–IV nên số câu mỗi phần đang đặt nhỏ (3 / 3 / 2 / 2 / 4). **Số câu thật (30 / 30 / 6 / 4 / 4) và tiêu đề phần được đặt bằng tab `PhanThi` khi import** (xem bên dưới). Nếu phần nào yêu cầu nhiều câu hơn ngân hàng có, import sẽ cảnh báo và học viên sẽ không vào thi được cho đến khi bổ sung.
+
+Thời lượng làm bài đổi trực tiếp trong D1 (bỏ `--remote` để chạy trên local):
 
 ```bash
 # Thời lượng T = 45 phút, dung sai nộp 60 giây
 npx wrangler d1 execute DB --remote --command "UPDATE cau_hinh SET thoi_luong_giay=2700, dung_sai_giay=60"
-# Số câu mỗi nhóm (nhóm khớp cột Nhóm của câu hỏi)
-npx wrangler d1 execute DB --remote --command "DELETE FROM cau_hinh_nhom; INSERT INTO cau_hinh_nhom VALUES ('kinh_thanh',20),('phung_vu',10),('tu_luan',2)"
 ```
 
 ## Google Sheets
@@ -92,35 +104,49 @@ Không commit file JSON hay `.dev.vars`. `.gitignore` đã loại trừ `.dev.va
 
 Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab phải đúng như sau:
 
-**`CauHoi`** (bắt buộc khi import)
+**`CauHoi`** (bắt buộc khi import). Thứ tự dòng chỉ quan trọng với phần tắt xáo (phần V): các câu được lấy theo thứ tự trong tab.
 
 | A: Mã | B: Loại | C: Nhóm    | D: Nội dung                   | E: Đáp án | F: Điểm | G: Lựa chọn A | H: Lựa chọn B | I, J, …: Lựa chọn C, D, … |
 | ----- | ------- | ---------- | ----------------------------- | --------- | ------- | ------------- | ------------- | ------------------------- |
 | KT01  | TN      | kinh_thanh | Sách đầu tiên của Kinh Thánh? | A         | 1       | Sáng Thế      | Xuất Hành     | I: Lêvi · J: Dân Số       |
-| TL01  | TL      | tu_luan    | Trình bày …                   |           | 5       |               |               |                           |
+| DK01  | DK      | dien_khuyet | Chúa Giêsu sinh ra tại thành ______. |      | 2       |               |               |                           |
+| V4    | TL      | song_hon_nhan | Câu 4: Người đời thường cho rằng … (viết khoảng 150-200 từ) | | 14 |      |               |                           |
 
-- Loại là `TN` (trắc nghiệm) hoặc `TL` (tự luận).
+- Loại: `TN` (trắc nghiệm, tự chấm), `DK` (điền vào chỗ trống, ô trả lời ngắn 3 dòng) hoặc `TL` (tự luận, ô trả lời dài, có đếm số từ). `DK` và `TL` do giáo viên chấm; không cần Đáp án và Lựa chọn.
+- Nhóm của câu phải khớp một dòng trong tab `PhanThi`, nếu không câu đó không bao giờ được bốc (import sẽ cảnh báo).
 - Đáp án là chữ cái ứng với lựa chọn: G là A, H là B, …
 - Điểm để trống thì mặc định là 1; dùng được dấu phẩy thập phân, ví dụ `1,5`.
+
+**`PhanThi`** (bắt buộc khi import): các phần của đề, thứ tự dòng là thứ tự phần. Cột: A: Nhóm (khớp cột Nhóm của `CauHoi`) | B: Tiêu đề phần | C: Số câu bốc | D: Hướng dẫn (tùy chọn) | E: Xáo thứ tự câu (để trống hoặc "có"; ghi "không" để giữ thứ tự trong ngân hàng).
+
+| A: Nhóm | B: Tiêu đề phần | C: Số câu | D: Hướng dẫn | E: Xáo |
+|---|---|---|---|---|
+| giao_ly_hon_nhan | PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN | 30 | | |
+| giao_ly_can_ban | PHẦN II. TRẮC NGHIỆM GIÁO LÝ CĂN BẢN | 30 | | |
+| kinh_bon | PHẦN III. TRẮC NGHIỆM KINH BỔN | 6 | | |
+| dien_khuyet | PHẦN IV – TỰ LUẬN | 4 | (điền đáp án vào chỗ trống) | |
+| song_hon_nhan | PHẦN V – TỰ LUẬN - SỐNG HÔN NHÂN | 4 | (điền đáp án vào chỗ trống) | không |
+
+Trên trang làm bài, mỗi câu hiển thị tiêu đề phần, hướng dẫn và "(số câu – số điểm)" của phần (tính từ các câu thực sự bốc), cùng điểm của câu.
 
 **`HocVien`** (bắt buộc khi import; không cần nếu chỉ nạp bằng CSV): A: Tên Thánh (**có thể để trống** nếu chưa có) | B: Họ và tên | C: Giáo xứ | D: Giáo phận (hai cột cuối tùy chọn, chỉ để hiển thị và giúp phân biệt người trùng tên).
 
 **`KetQua`** (bắt buộc có tab, có thể để trống): app ghi kết quả vào đây. Lần import đầu tiên sẽ tự ghi dòng tiêu đề nếu tab đang trống. Các cột theo thứ tự:
 
-Mã lượt · Tên Thánh · Họ và tên · Giáo xứ · Giáo phận · Giờ bắt đầu · Giờ nộp · Nộp trễ · Số lần rời tab · Điểm TN · Bài tự luận · **Điểm TL** (giáo viên nhập) · Tổng điểm (công thức = Điểm TN + Điểm TL)
+Mã lượt · Tên Thánh · Họ và tên · Giáo xứ · Giáo phận · Giờ bắt đầu · Giờ nộp · Nộp trễ · Số lần rời tab · Điểm TN · Bài tự luận (gồm cả câu điền vào chỗ trống, mỗi câu một đoạn "[mã câu] đáp án") · **Điểm TL** (giáo viên nhập) · Tổng điểm (công thức = Điểm TN + Điểm TL)
 
 Mọi chuỗi do học viên nhập mà bắt đầu bằng `=`, `+`, `-`, `@` đều được thêm `'` phía trước để chống formula injection.
 
 ### Import và resync
 
 ```bash
-# Nạp CauHoi và HocVien từ Sheet vào D1
+# Nạp CauHoi, PhanThi và HocVien từ Sheet vào D1
 curl -X POST https://<app>/api/admin/import -H "Authorization: Bearer $ADMIN_TOKEN"
 # Đẩy lại các bài đã nộp nhưng chưa lên được Sheet (sync_pending = 1)
 curl -X POST https://<app>/api/admin/resync -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-- **Câu hỏi** được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người *chưa thi* cũng được (dòng cũ bị xóa, dòng mới được tạo); với người *đã thi*, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
+- **Câu hỏi** và **các phần của đề** (tab `PhanThi`) được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người *chưa thi* cũng được (dòng cũ bị xóa, dòng mới được tạo); với người *đã thi*, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
 - Import sẽ **từ chối** khi đang có lượt thi chưa nộp, vì đề đã phát tham chiếu tới mã câu hỏi. Thêm `?force=1` nếu chắc chắn. Nếu Sheet có lỗi, import trả danh sách lỗi theo dòng và không ghi gì vào D1.
 - Resync đọc cột A của `KetQua` để tránh tạo hàng trùng. Lượt đã có trên Sheet thì chỉ cập nhật cột A–K, không đụng cột Điểm TL (L). Lượt vừa nộp chưa quá 2 phút sẽ được bỏ qua, vì bước đồng bộ ngay sau khi nộp có thể vẫn đang chạy.
 

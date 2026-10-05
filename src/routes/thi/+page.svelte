@@ -34,6 +34,18 @@
 	const soDaTraLoi = $derived(ds.filter((q) => daTraLoi(q.ma)).length);
 	const q = $derived(ds[hienTai]);
 
+	// Đề đã được xếp sẵn theo phần: gom chỉ số câu của từng phần để vẽ danh sách và tiêu đề.
+	const nhomNav = d.phan
+		.map((p) => {
+			const chiSo = ds.flatMap((c, i) => (c.phan === p.nhom ? [i] : []));
+			return { ...p, chiSo, diem: chiSo.reduce((t, i) => t + ds[i].diem, 0) };
+		})
+		.filter((g) => g.chiSo.length);
+	const nhomHienTai = $derived(nhomNav.find((g) => g.nhom === q?.phan));
+	const NHAN_LOAI = { TN: 'Trắc nghiệm', DK: 'Điền vào chỗ trống', TL: 'Tự luận' } as const;
+	const soTu = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+	let moDs = $state(false); // chỉ dùng trên điện thoại: gập/mở danh sách câu
+
 	function dinhDang(ms: number) {
 		const s = Math.ceil(ms / 1000);
 		const h = Math.floor(s / 3600);
@@ -160,7 +172,7 @@
 
 <!-- Điện thoại: một cột, đồng hồ dính trên cùng. Máy tính bảng/máy tính: cột trái dính (thông tin + đồng hồ + danh sách câu), cột phải là câu hỏi. -->
 <div class="md:grid md:grid-cols-[17rem_1fr] md:items-start md:gap-6">
-<div class="contents md:sticky md:top-4 md:block">
+<div class="contents md:sticky md:top-4 md:block md:max-h-[calc(100dvh-2rem)] md:overflow-y-auto">
 <header class="card card-border sticky top-2 z-10 mb-4 bg-base-100 md:static">
 	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
 		<div class="flex min-w-0 flex-col">
@@ -192,14 +204,34 @@
 	</div>
 </header>
 
-<nav class="mb-4 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2" aria-label="Danh sách câu hỏi">
-	{#each ds as c, i (c.ma)}
-		<button
-			class={['btn', i === hienTai ? 'btn-primary' : daTraLoi(c.ma) ? 'btn-soft btn-success' : 'border-base-300 bg-base-100']}
-			aria-current={i === hienTai ? 'step' : undefined}
-			aria-label={`Câu ${i + 1}${daTraLoi(c.ma) ? ', đã trả lời' : ''}`}
-			onclick={() => (hienTai = i)}>{i + 1}</button
-		>
+<button
+	type="button"
+	class="btn mb-2 w-full justify-between md:hidden"
+	aria-expanded={moDs}
+	aria-controls="ds-cau"
+	onclick={() => (moDs = !moDs)}
+>
+	<span>Danh sách câu hỏi</span>
+	<span class="text-sm opacity-85">{soDaTraLoi}/{ds.length} {moDs ? '▴' : '▾'}</span>
+</button>
+<nav id="ds-cau" class={['mb-4 flex-col gap-3', moDs ? 'flex' : 'hidden md:flex']} aria-label="Danh sách câu hỏi">
+	{#each nhomNav as g (g.nhom)}
+		<div>
+			<p class="mb-1 text-xs font-semibold opacity-85">{g.ten || g.nhom}</p>
+			<div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+				{#each g.chiSo as i (i)}
+					<button
+						class={['btn', i === hienTai ? 'btn-primary' : daTraLoi(ds[i].ma) ? 'btn-soft btn-success' : 'border-base-300 bg-base-100']}
+						aria-current={i === hienTai ? 'step' : undefined}
+						aria-label={`Câu ${i + 1}${daTraLoi(ds[i].ma) ? ', đã trả lời' : ''}`}
+						onclick={() => {
+							hienTai = i;
+							moDs = false;
+						}}>{i + 1}</button
+					>
+				{/each}
+			</div>
+		</div>
 	{/each}
 </nav>
 </div>
@@ -208,7 +240,16 @@
 {#if q}
 	<section class="card card-border">
 		<div class="card-body px-0">
-			<p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
+			{#if nhomHienTai}
+				<div>
+					<p class="font-semibold">
+						{nhomHienTai.ten || nhomHienTai.nhom}
+						<span class="text-sm font-normal opacity-85">({nhomHienTai.chiSo.length} câu – {nhomHienTai.diem} điểm)</span>
+					</p>
+					{#if nhomHienTai.huong_dan}<p class="text-sm opacity-85">{nhomHienTai.huong_dan}</p>{/if}
+				</div>
+			{/if}
+			<p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {NHAN_LOAI[q.loai]} · {q.diem} điểm</p>
 			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}</h2>
 			{#if q.lua_chon}
 				<div class="flex flex-col gap-2" role="radiogroup" aria-labelledby="noi-dung">
@@ -236,8 +277,8 @@
 			{:else}
 				<textarea
 					class="textarea w-full"
-					rows="10"
-					maxlength="5000"
+					rows={q.loai === 'DK' ? 3 : 10}
+					maxlength={q.loai === 'DK' ? 1000 : 5000}
 					aria-labelledby="noi-dung"
 					value={tuLuan[q.ma] ?? ''}
 					oninput={(e) => {
@@ -245,7 +286,9 @@
 						daSua(false);
 					}}
 				></textarea>
-				<p class="text-sm opacity-85">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
+				<p class="text-sm opacity-85">
+					{#if q.loai === 'TL'}{soTu(tuLuan[q.ma] ?? '')} từ · {/if}{(tuLuan[q.ma] ?? '').length}/{q.loai === 'DK' ? 1000 : 5000} ký tự
+				</p>
 			{/if}
 			<div class="card-actions mt-2 justify-between">
 				<button class="btn" disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>

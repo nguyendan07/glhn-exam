@@ -1,13 +1,14 @@
--- Ngân hàng câu hỏi. lua_chon: JSON mảng chuỗi (chỉ TN). dap_an: chỉ số 0-based trong lua_chon gốc (chỉ TN).
+-- Ngân hàng câu hỏi. loai: TN trắc nghiệm (tự chấm) · DK điền vào chỗ trống (ô ngắn) · TL tự luận (ô dài); DK và TL do giáo viên chấm.
+-- lua_chon: JSON mảng chuỗi (chỉ TN). dap_an: chỉ số 0-based trong lua_chon gốc (chỉ TN).
 CREATE TABLE cau_hoi (
 	ma TEXT PRIMARY KEY,
-	loai TEXT NOT NULL CHECK (loai IN ('TN', 'TL')),
+	loai TEXT NOT NULL CHECK (loai IN ('TN', 'DK', 'TL')),
 	nhom TEXT NOT NULL,
 	noi_dung TEXT NOT NULL,
 	lua_chon TEXT,
 	dap_an INTEGER,
 	diem REAL NOT NULL DEFAULT 1,
-	CHECK (loai = 'TL' OR (lua_chon IS NOT NULL AND dap_an IS NOT NULL))
+	CHECK (loai != 'TN' OR (lua_chon IS NOT NULL AND dap_an IS NOT NULL))
 );
 
 -- Danh sách học viên được phép thi. Học viên tìm tên rồi chọn đúng dòng của mình; id là khóa chống thi lần hai.
@@ -29,10 +30,15 @@ CREATE TABLE cau_hinh (
 	dung_sai_giay INTEGER NOT NULL DEFAULT 60 CHECK (dung_sai_giay >= 0)
 );
 
--- Số câu bốc ở mỗi nhóm.
+-- Các phần của đề, theo thứ tự thu_tu. Mỗi phần bốc so_cau câu từ nhóm cùng tên (nhom).
+-- xao_tron = 0: lấy so_cau câu đầu của nhóm theo thứ tự trong ngân hàng, không xáo (dùng cho phần có câu cố định như tự luận).
 CREATE TABLE cau_hinh_nhom (
 	nhom TEXT PRIMARY KEY,
-	so_cau INTEGER NOT NULL CHECK (so_cau >= 0)
+	so_cau INTEGER NOT NULL CHECK (so_cau >= 0),
+	ten TEXT NOT NULL DEFAULT '', -- tiêu đề phần, ví dụ "PHẦN I - TRẮC NGHIỆM GIÁO LÝ HÔN NHÂN"
+	huong_dan TEXT NOT NULL DEFAULT '', -- ví dụ "(điền đáp án vào chỗ trống)"
+	thu_tu INTEGER NOT NULL DEFAULT 0,
+	xao_tron INTEGER NOT NULL DEFAULT 1 CHECK (xao_tron IN (0, 1))
 );
 
 CREATE TABLE luot_thi (
