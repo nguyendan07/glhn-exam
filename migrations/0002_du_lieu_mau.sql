@@ -14,9 +14,10 @@ INSERT INTO cau_hoi (ma, loai, nhom, noi_dung, lua_chon, dap_an, diem) VALUES
 ('TL01', 'TL', 'tu_luan', 'Hãy trình bày ý nghĩa của Bí Tích Thánh Thể trong đời sống người Kitô hữu.', NULL, NULL, 5),
 ('TL02', 'TL', 'tu_luan', 'Bạn hiểu thế nào về điều răn mến Chúa yêu người?', NULL, NULL, 5);
 
-INSERT INTO giao_xu (ten, giao_phan) VALUES
-('Giáo xứ Tân Định', 'Sài Gòn'),
-('Giáo xứ Đức Bà', 'Sài Gòn'),
-('Giáo xứ Hàm Long', 'Hà Nội'),
-('Giáo xứ Phát Diệm', 'Phát Diệm'),
-('Giáo xứ Phú Cam', 'Huế');
+-- Học viên mẫu (một người chưa có tên Thánh, hai người trùng họ tên để thử trường hợp trùng tên).
+INSERT INTO hoc_vien_cho_phep (khoa, ten_thanh, ho_ten, tim_kiem, giao_xu, giao_phan) VALUES
+('nguyen van an|phero#1', 'Phêrô', 'Nguyễn Văn An', 'phero nguyen van an', 'Giáo xứ Tân Định', 'Sài Gòn'),
+('nguyen van an|giuse#1', 'Giuse', 'Nguyễn Văn An', 'giuse nguyen van an', 'Giáo xứ Hàm Long', 'Hà Nội'),
+('tran thi binh|#1', '', 'Trần Thị Bình', 'tran thi binh', 'Giáo xứ Đức Bà', 'Sài Gòn'),
+('le thi cuc|maria#1', 'Maria', 'Lê Thị Cúc', 'maria le thi cuc', 'Giáo xứ Phú Cam', 'Huế'),
+('pham van dung|anre#1', 'Anrê', 'Phạm Văn Dũng', 'anre pham van dung', '', '');

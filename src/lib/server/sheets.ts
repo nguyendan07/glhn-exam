@@ -1,12 +1,11 @@
 // Client Google Sheets tối giản cho Workers: ký JWT service account bằng Web Crypto, gọi REST API bằng fetch.
 // Không import gì của SvelteKit để Worker cron dùng lại được.
-import { hienThiNgay } from './normalize';
 
 export type SheetEnv = { GOOGLE_SA_EMAIL: string; GOOGLE_SA_PRIVATE_KEY: string; SHEET_ID: string };
 
 export const TAB_KET_QUA = 'KetQua';
 export const TIEU_DE_KET_QUA = [
-	'Mã lượt', 'Tên Thánh', 'Họ và tên', 'Ngày sinh', 'Giáo xứ', 'Giáo phận', 'Giờ bắt đầu', 'Giờ nộp',
+	'Mã lượt', 'Tên Thánh', 'Họ và tên', 'Giáo xứ', 'Giáo phận', 'Giờ bắt đầu', 'Giờ nộp',
 	'Nộp trễ', 'Số lần rời tab', 'Điểm TN', 'Bài tự luận', 'Điểm TL', 'Tổng điểm'
 ];
 
@@ -114,7 +113,6 @@ type LuotSync = {
 	id: string;
 	ten_thanh: string;
 	ho_ten: string;
-	ngay_sinh: string;
 	giao_xu: string;
 	giao_phan: string;
 	started_at: number;
@@ -126,14 +124,14 @@ type LuotSync = {
 	sheet_row: number | null;
 };
 
-const SELECT_SYNC = `SELECT l.id, l.ten_thanh, l.ho_ten, l.ngay_sinh, l.giao_xu, l.giao_phan, l.started_at, l.submitted_at,
+const SELECT_SYNC = `SELECT l.id, l.ten_thanh, l.ho_ten, l.giao_xu, l.giao_phan, l.started_at, l.submitted_at,
 	l.nop_tre, l.so_lan_roi_tab, l.sheet_row, b.diem_tn, b.tu_luan
 	FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id`;
 
 const gio = (ms: number) =>
 	"'" + new Date(ms).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
 
-/** Một hàng của tab KetQua (cột A..N). Mọi chuỗi do học viên nhập đều qua escapeCell. */
+/** Một hàng của tab KetQua (cột A..M: Điểm TN là J, Điểm TL là L). Mọi chuỗi do học viên nhập đều qua escapeCell. */
 export function hangKetQua(l: LuotSync): (string | number)[] {
 	const tl = Object.entries(JSON.parse(l.tu_luan) as Record<string, string>)
 		.map(([ma, s]) => `[${ma}]\n${s}`)
@@ -142,7 +140,6 @@ export function hangKetQua(l: LuotSync): (string | number)[] {
 		l.id,
 		escapeCell(l.ten_thanh),
 		escapeCell(l.ho_ten),
-		"'" + hienThiNgay(l.ngay_sinh),
 		escapeCell(l.giao_xu),
 		escapeCell(l.giao_phan),
 		gio(l.started_at),
@@ -152,7 +149,7 @@ export function hangKetQua(l: LuotSync): (string | number)[] {
 		l.diem_tn ?? 0,
 		escapeCell(tl),
 		'', // Điểm TL: giáo viên nhập
-		'=N(INDIRECT("K"&ROW()))+N(INDIRECT("M"&ROW()))'
+		'=N(INDIRECT("J"&ROW()))+N(INDIRECT("L"&ROW()))'
 	];
 }
 
@@ -173,8 +170,8 @@ export async function dongBoMot(db: D1Database, env: Partial<SheetEnv>, id: stri
 }
 
 /**
- * Đồng bộ lại các lượt sync_pending. Đọc cột A để không tạo hàng trùng: lượt đã có trên Sheet thì cập nhật A..L
- * (không đụng cột M do giáo viên nhập), chưa có thì append. Bỏ qua lượt vừa nộp < 2 phút (waitUntil có thể đang chạy).
+ * Đồng bộ lại các lượt sync_pending. Đọc cột A để không tạo hàng trùng: lượt đã có trên Sheet thì cập nhật A..K
+ * (không đụng cột L do giáo viên nhập), chưa có thì append. Bỏ qua lượt vừa nộp < 2 phút (waitUntil có thể đang chạy).
  */
 export async function dongBoLai(db: D1Database, env: Partial<SheetEnv>, now = Date.now(), gioiHan = 500) {
 	if (!coCauHinh(env)) throw new Error('Thiếu GOOGLE_SA_EMAIL / GOOGLE_SA_PRIVATE_KEY / SHEET_ID.');
@@ -192,7 +189,7 @@ export async function dongBoLai(db: D1Database, env: Partial<SheetEnv>, now = Da
 	for (const l of results) {
 		const row = daCo.get(l.id);
 		if (row) {
-			capNhat.push({ range: `${TAB_KET_QUA}!A${row}:L${row}`, values: [hangKetQua(l).slice(0, 12)] });
+			capNhat.push({ range: `${TAB_KET_QUA}!A${row}:K${row}`, values: [hangKetQua(l).slice(0, 11)] });
 			xong.push([l.id, row]);
 		} else them.push(l);
 	}

@@ -1,79 +1,116 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { d1Test } from './testing/d1';
-import { batDau, luuBai, nopBai, timLuotTheoToken, trangThaiThi } from './thi';
+import { batDau, luuBai, nopBai, timHocVien, timLuotTheoToken, trangThaiThi } from './thi';
 
-const HV = { ten_thanh: 'Phêrô', ho_ten: 'Nguyễn Văn An', ngay_sinh: '01/02/2010', giao_xu: 'Giáo xứ Tân Định', giao_phan: 'Sài Gòn' };
+// Học viên mẫu (migrations/0002): 1 Phêrô Nguyễn Văn An · 2 Giuse Nguyễn Văn An · 3 Trần Thị Bình (chưa có tên Thánh)
+// · 4 Maria Lê Thị Cúc · 5 Anrê Phạm Văn Dũng (chưa có giáo xứ/giáo phận)
 const T = 1800_000; // cấu hình mẫu: 1800s, dung sai 60s
 let db: D1Database;
 const t0 = 1_700_000_000_000;
 
-async function start(body: unknown = HV, token?: string, roster = false) {
-	const r = await batDau(db, body, token, roster, t0);
+async function start(hocVienId: unknown = 1, token?: string) {
+	const r = await batDau(db, { hoc_vien_id: hocVienId }, token, t0);
 	return { status: r.res.status, body: (await r.res.json()) as any, token: r.token };
 }
 const body = (r: Response) => r.json() as Promise<any>;
+const ten = (r: { ten_thanh: string; ho_ten: string }) => [r.ten_thanh, r.ho_ten].filter(Boolean).join(' ');
 
 beforeEach(() => {
 	db = d1Test();
 });
 
-describe('/api/start', () => {
-	it.each(['ten_thanh', 'giao_xu', 'giao_phan', 'ho_ten', 'ngay_sinh'])('400 khi thiếu %s', async (k) => {
-		expect((await start({ ...HV, [k]: '   ' })).status).toBe(400);
-	});
-	it('400 khi vượt độ dài hoặc ngày sai', async () => {
-		expect((await start({ ...HV, ten_thanh: 'x'.repeat(61) })).status).toBe(400);
-		expect((await start({ ...HV, giao_xu: 'x'.repeat(61) })).status).toBe(400);
-		expect((await start({ ...HV, giao_phan: 'x'.repeat(61) })).status).toBe(400);
-		expect((await start({ ...HV, ngay_sinh: '30/02/2010' })).status).toBe(400);
-		expect((await start('rác')).status).toBe(400);
+describe('tìm kiếm khi gõ', () => {
+	it('không phân biệt dấu/hoa thường, có hoặc không kèm tên Thánh', async () => {
+		expect((await timHocVien(db, 'tran thi binh')).map(ten)).toEqual(['Trần Thị Bình']);
+		expect((await timHocVien(db, 'TRẦN thị')).map(ten)).toEqual(['Trần Thị Bình']);
+		expect((await timHocVien(db, 'maria lê thị cúc')).map(ten)).toEqual(['Maria Lê Thị Cúc']);
+		expect((await timHocVien(db, 'le thi cuc')).map(ten)).toEqual(['Maria Lê Thị Cúc']);
+		expect((await timHocVien(db, 'phạm văn dũng')).map(ten)).toEqual(['Anrê Phạm Văn Dũng']);
 	});
 
-	it('lưu bản gốc có dấu và bản chuẩn hóa', async () => {
-		await start({ ...HV, ten_thanh: '  Phêrô ', giao_xu: 'Giáo  xứ Đức Bà' });
-		const r = await db.prepare('SELECT * FROM luot_thi').first<any>();
-		expect(r).toMatchObject({ ten_thanh: 'Phêrô', ten_thanh_chuan_hoa: 'phero', giao_xu: 'Giáo xứ Đức Bà', giao_xu_chuan_hoa: 'giao xu duc ba', khoa_dinh_danh: 'nguyen van an|2010-02-01' });
+	it('trùng họ tên thì trả đủ các dòng để chọn; tên Thánh thu hẹp kết quả', async () => {
+		expect((await timHocVien(db, 'nguyen van an')).map(ten)).toEqual(['Giuse Nguyễn Văn An', 'Phêrô Nguyễn Văn An']);
+		expect((await timHocVien(db, 'phêrô nguyễn văn an')).map(ten)).toEqual(['Phêrô Nguyễn Văn An']);
+	});
+
+	it('quá ngắn thì không tìm; ký tự đặc biệt không phá câu truy vấn', async () => {
+		expect(await timHocVien(db, '')).toEqual([]);
+		expect(await timHocVien(db, ' a ')).toEqual([]);
+		expect(await timHocVien(db, '%')).toEqual([]);
+		expect(await timHocVien(db, "nguyen%' OR 1=1 --")).toEqual([]);
+		expect(await timHocVien(db, '_ _')).toEqual([]);
+	});
+
+	it('đánh dấu da_thi sau khi đã có lượt thi, và không trả dữ liệu nhạy cảm', async () => {
+		await start(3);
+		const [r] = await timHocVien(db, 'tran thi binh');
+		expect(r).toEqual({ id: 3, ten_thanh: '', ho_ten: 'Trần Thị Bình', giao_xu: 'Giáo xứ Đức Bà', giao_phan: 'Sài Gòn', da_thi: true });
+		expect((await timHocVien(db, 'le thi cuc'))[0].da_thi).toBe(false);
+	});
+
+	it('giới hạn số kết quả', async () => {
+		for (let i = 0; i < 12; i++)
+			await db.prepare('INSERT INTO hoc_vien_cho_phep (khoa, ho_ten, tim_kiem) VALUES (?, ?, ?)').bind(`k${i}`, `Hoàng ${i}`, `hoang ${i}`).run();
+		expect(await timHocVien(db, 'hoang')).toHaveLength(8);
+	});
+});
+
+describe('/api/start', () => {
+	it.each([null, 'abc', 0, -1, 1.5, '1'])('400 khi hoc_vien_id = %s', async (v) => {
+		expect((await start(v)).status).toBe(400);
+	});
+	it('400 khi body không phải object, 404 khi mã không có trong danh sách', async () => {
+		expect((await batDau(db, 'rác', undefined, t0)).res.status).toBe(400);
+		expect((await batDau(db, {}, undefined, t0)).res.status).toBe(400);
+		expect((await start(999)).status).toBe(404);
+	});
+
+	it('lưu bản sao thông tin (gốc có dấu + chuẩn hóa); học viên chưa có tên Thánh/giáo xứ vẫn thi được', async () => {
+		await start(1);
+		await start(3);
+		await start(5);
+		const rows = (await db.prepare('SELECT * FROM luot_thi ORDER BY hoc_vien_id').all<any>()).results;
+		expect(rows[0]).toMatchObject({ ten_thanh: 'Phêrô', ten_thanh_chuan_hoa: 'phero', ho_ten: 'Nguyễn Văn An', ho_ten_chuan_hoa: 'nguyen van an', giao_xu: 'Giáo xứ Tân Định', giao_xu_chuan_hoa: 'giao xu tan dinh' });
+		expect(rows[1]).toMatchObject({ ten_thanh: '', ten_thanh_chuan_hoa: '', ho_ten: 'Trần Thị Bình' });
+		expect(rows[2]).toMatchObject({ giao_xu: '', giao_phan: '' });
 	});
 
 	it('tải lại / vào lại cùng thiết bị trả đúng lượt cũ, không tạo đề mới', async () => {
 		const a = await start();
 		expect(a.status).toBe(200);
 		const l1 = (await timLuotTheoToken(db, a.token))!;
-		const b = await start({ ...HV, ten_thanh: 'Giuse' }, a.token);
+		const b = await start(1, a.token);
 		expect(b.status).toBe(200);
 		expect(b.token).toBeUndefined();
 		const l2 = (await timLuotTheoToken(db, a.token))!;
 		expect(l2.de_thi).toBe(l1.de_thi);
-		expect(l2.ten_thanh).toBe('Phêrô'); // không cho sửa thông tin
 		expect((await db.prepare('SELECT COUNT(*) n FROM luot_thi').first<any>()).n).toBe(1);
 	});
 
-	it('cùng họ tên + ngày sinh nhưng khác Tên Thánh/Giáo xứ/Giáo phận vẫn là một người', async () => {
-		await start();
-		const r = await start({ ten_thanh: 'Giuse', ho_ten: 'nguyen  van AN', ngay_sinh: '1/2/2010', giao_xu: 'Khác', giao_phan: 'Khác' });
-		expect(r.status).toBe(409);
-	});
-
-	it('thi lần hai sau khi nộp bị từ chối', async () => {
+	it('thiết bị khác không vào được lượt đang mở; thi lần hai sau khi nộp bị từ chối', async () => {
 		const a = await start();
+		expect((await start(1)).status).toBe(409);
 		await nopBai(db, a.token, undefined, t0 + T / 2);
-		const r = await start({ ...HV, giao_xu: 'Giáo xứ khác' });
-		expect(r.status).toBe(409);
-		expect(r.body.error).toMatch(/đã thi/);
+		const r = await start(1, a.token);
+		expect(r.status).toBe(200); // cùng thiết bị: chỉ xem kết quả
+		expect(r.body.trang_thai).toBe('da_nop');
+		const khac = await start(1);
+		expect(khac.status).toBe(409);
+		expect(khac.body.error).toMatch(/đã thi/);
 	});
 
-	it('UNIQUE ở tầng DB chặn insert trùng khóa', async () => {
+	it('hai người trùng họ tên là hai dòng khác nhau, thi độc lập', async () => {
+		expect((await start(1)).status).toBe(200);
+		expect((await start(2)).status).toBe(200);
+		expect((await db.prepare('SELECT COUNT(*) n FROM luot_thi').first<any>()).n).toBe(2);
+	});
+
+	it('UNIQUE(hoc_vien_id) ở tầng DB chặn lượt thứ hai cho cùng một dòng', async () => {
 		await start();
 		await expect(
-			db.prepare(`INSERT INTO luot_thi (id, khoa_dinh_danh, ho_ten, ho_ten_chuan_hoa, ten_thanh, ten_thanh_chuan_hoa, giao_xu, giao_xu_chuan_hoa, giao_phan, giao_phan_chuan_hoa, ngay_sinh, started_at, de_thi)
-				VALUES ('x', 'nguyen van an|2010-02-01', '', '', '', '', '', '', '', '', '', 0, '[]')`).run()
+			db.prepare(`INSERT INTO luot_thi (id, hoc_vien_id, ho_ten, ho_ten_chuan_hoa, ten_thanh, ten_thanh_chuan_hoa, giao_xu, giao_xu_chuan_hoa, giao_phan, giao_phan_chuan_hoa, started_at, de_thi)
+				VALUES ('x', 1, '', '', '', '', '', '', '', '', 0, '[]')`).run()
 		).rejects.toThrow(/UNIQUE/);
-	});
-
-	it('REQUIRE_ROSTER chỉ cho học viên trong danh sách', async () => {
-		expect((await start(HV, undefined, true)).status).toBe(403);
-		await db.prepare(`INSERT INTO hoc_vien_cho_phep (ho_ten, ho_ten_chuan_hoa, ngay_sinh) VALUES ('Nguyễn Văn An', 'nguyen van an', '2010-02-01')`).run();
-		expect((await start(HV, undefined, true)).status).toBe(200);
 	});
 
 	it('giám thị mở khóa (token_hash NULL) thì vào lại được từ thiết bị khác', async () => {

@@ -1,4 +1,4 @@
-import { chuanHoa, lamSach, parseNgaySinh } from './normalize';
+import { chuanHoa, lamSach } from './normalize';
 import { docVung, ghiVung, TAB_KET_QUA, TIEU_DE_KET_QUA, type SheetEnv } from './sheets';
 import { sha256Hex } from './thi';
 
@@ -51,29 +51,27 @@ export function parseCauHoi(rows: string[][]) {
 	return { ds, loi };
 }
 
-export function parseGiaoXu(rows: string[][]) {
-	return rows.map((h) => ({ ten: o(h, 0), giao_phan: o(h, 1) })).filter((x) => x.ten && x.giao_phan);
-}
-
+/** Tab HocVien: A Tên Thánh (có thể trống) | B Họ và tên | C Giáo xứ | D Giáo phận (tùy chọn). */
 export function parseHocVien(rows: string[][]) {
 	const loi: string[] = [];
-	const ds = new Map<string, Record<string, string | null>>();
+	const dem = new Map<string, number>();
+	const ds: { khoa: string; ten_thanh: string; ho_ten: string; tim_kiem: string; giao_xu: string; giao_phan: string }[] = [];
 	rows.forEach((h, i) => {
-		const hoTen = o(h, 0);
-		if (!hoTen) return;
-		const ns = parseNgaySinh(o(h, 1));
-		if (!ns) return loi.push(`HocVien dòng ${i + 2}: ngày sinh "${o(h, 1)}" không hợp lệ (dd/mm/yyyy).`);
-		const ch = chuanHoa(hoTen);
-		ds.set(ch + '|' + ns, {
-			ho_ten: hoTen, ho_ten_chuan_hoa: ch, ngay_sinh: ns,
-			ten_thanh: o(h, 2) || null, giao_xu: o(h, 3) || null, giao_phan: o(h, 4) || null
-		});
+		const [tenThanh, hoTen, giaoXu, giaoPhan] = [o(h, 0), o(h, 1), o(h, 2), o(h, 3)];
+		if (!tenThanh && !hoTen && !giaoXu && !giaoPhan) return;
+		if (!hoTen) return loi.push(`HocVien dòng ${i + 2}: thiếu Họ và tên.`);
+		if (tenThanh.length > 60 || hoTen.length > 100 || giaoXu.length > 60 || giaoPhan.length > 60) return loi.push(`HocVien dòng ${i + 2}: giá trị quá dài.`);
+		const goc = chuanHoa(hoTen) + '|' + chuanHoa(tenThanh);
+		const n = (dem.get(goc) ?? 0) + 1;
+		dem.set(goc, n);
+		ds.push({ khoa: `${goc}#${n}`, ten_thanh: tenThanh, ho_ten: hoTen, tim_kiem: chuanHoa(`${tenThanh} ${hoTen}`), giao_xu: giaoXu, giao_phan: giaoPhan });
 	});
-	return { ds: [...ds.values()], loi };
+	return { ds, loi };
 }
 
 /**
- * Nạp tab CauHoi (bắt buộc), GiaoXu và HocVien (nếu có) từ Sheet, thay toàn bộ dữ liệu tương ứng trong D1.
+ * Nạp tab CauHoi và HocVien từ Sheet vào D1. Câu hỏi được thay toàn bộ; học viên được cập nhật theo khóa (giữ nguyên id của
+ * người đã có lượt thi), dòng nào bị xóa khỏi Sheet thì bị xóa khỏi D1 trừ khi đã có lượt thi.
  * Từ chối khi đang có lượt thi dở dang (trừ khi force) vì đề đã phát tham chiếu tới mã câu hỏi.
  */
 export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean) {
@@ -81,17 +79,15 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 		const dang = await db.prepare(`SELECT COUNT(*) n FROM luot_thi WHERE trang_thai = 'dang_thi'`).first<{ n: number }>();
 		if (dang && dang.n > 0) return { status: 409, body: { error: `Đang có ${dang.n} lượt thi chưa nộp. Thêm ?force=1 nếu chắc chắn.` } };
 	}
-	const [ch, gx, hv] = await Promise.all([
-		docTab(env, 'CauHoi!A2:Z'),
-		docTab(env, 'GiaoXu!A2:B'),
-		docTab(env, 'HocVien!A2:E')
-	]);
+	const [ch, hv] = await Promise.all([docTab(env, 'CauHoi!A2:Z'), docTab(env, 'HocVien!A2:D')]);
 	if (!ch) return { status: 400, body: { error: 'Không tìm thấy tab CauHoi.' } };
+	if (!hv) return { status: 400, body: { error: 'Không tìm thấy tab HocVien.' } };
 	const cauHoi = parseCauHoi(ch);
-	const hocVien = hv ? parseHocVien(hv) : null;
-	const loi = [...cauHoi.loi, ...(hocVien?.loi ?? [])];
+	const hocVien = parseHocVien(hv);
+	const loi = [...cauHoi.loi, ...hocVien.loi];
 	if (loi.length) return { status: 400, body: { error: 'Dữ liệu Sheet có lỗi, chưa ghi gì vào D1.', chi_tiet: loi } };
 	if (!cauHoi.ds.length) return { status: 400, body: { error: 'Tab CauHoi không có câu hỏi nào.' } };
+	if (!hocVien.ds.length) return { status: 400, body: { error: 'Tab HocVien không có học viên nào.' } };
 
 	const json = (x: unknown) => JSON.stringify(x);
 	const stmts = [
@@ -104,23 +100,23 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 			)
 			.bind(json(cauHoi.ds))
 	];
-	const giaoXu = gx ? parseGiaoXu(gx) : null;
-	if (giaoXu)
-		stmts.push(
-			db.prepare('DELETE FROM giao_xu'),
-			db.prepare(`INSERT INTO giao_xu (ten, giao_phan) SELECT value->>'ten', value->>'giao_phan' FROM json_each(?)`).bind(json(giaoXu))
-		);
-	if (hocVien)
-		stmts.push(
-			db.prepare('DELETE FROM hoc_vien_cho_phep'),
-			db
-				.prepare(
-					`INSERT INTO hoc_vien_cho_phep (ho_ten, ho_ten_chuan_hoa, ngay_sinh, ten_thanh, giao_xu, giao_phan)
-					SELECT value->>'ho_ten', value->>'ho_ten_chuan_hoa', value->>'ngay_sinh', value->>'ten_thanh', value->>'giao_xu', value->>'giao_phan'
-					FROM json_each(?)`
-				)
-				.bind(json(hocVien.ds))
-		);
+	stmts.push(
+		db
+			.prepare(
+				`INSERT INTO hoc_vien_cho_phep (khoa, ten_thanh, ho_ten, tim_kiem, giao_xu, giao_phan)
+				SELECT value->>'khoa', value->>'ten_thanh', value->>'ho_ten', value->>'tim_kiem', value->>'giao_xu', value->>'giao_phan'
+				FROM json_each(?) WHERE true
+				ON CONFLICT (khoa) DO UPDATE SET ten_thanh = excluded.ten_thanh, ho_ten = excluded.ho_ten,
+				tim_kiem = excluded.tim_kiem, giao_xu = excluded.giao_xu, giao_phan = excluded.giao_phan`
+			)
+			.bind(json(hocVien.ds)),
+		db
+			.prepare(
+				`DELETE FROM hoc_vien_cho_phep WHERE khoa NOT IN (SELECT value->>'khoa' FROM json_each(?))
+				AND id NOT IN (SELECT hoc_vien_id FROM luot_thi)`
+			)
+			.bind(json(hocVien.ds))
+	);
 	await db.batch(stmts);
 
 	const canhBao: string[] = [];
@@ -129,12 +125,12 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 		.all<{ nhom: string; so_cau: number; co: number }>();
 	for (const n of nhom) if (n.co < n.so_cau) canhBao.push(`Nhóm "${n.nhom}" cần ${n.so_cau} câu nhưng chỉ có ${n.co}.`);
 
-	const tieuDe = await docTab(env, `${TAB_KET_QUA}!A1:N1`);
+	const tieuDe = await docTab(env, `${TAB_KET_QUA}!A1:M1`);
 	if (!tieuDe) canhBao.push(`Chưa có tab ${TAB_KET_QUA}: hãy tạo tab này để nhận kết quả.`);
-	else if (!tieuDe.length) await ghiVung(env, `${TAB_KET_QUA}!A1:N1`, [TIEU_DE_KET_QUA]);
+	else if (!tieuDe.length) await ghiVung(env, `${TAB_KET_QUA}!A1:M1`, [TIEU_DE_KET_QUA]);
 
 	return {
 		status: 200,
-		body: { cau_hoi: cauHoi.ds.length, giao_xu: giaoXu?.length ?? null, hoc_vien: hocVien?.ds.length ?? null, canh_bao: canhBao }
+		body: { cau_hoi: cauHoi.ds.length, hoc_vien: hocVien.ds.length, canh_bao: canhBao }
 	};
 }

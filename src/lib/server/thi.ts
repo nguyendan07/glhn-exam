@@ -1,5 +1,5 @@
 import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe } from './exam';
-import { chuanHoa, GIOI_HAN, hienThiNgay, khoaDinhDanh, kiemTraThongTin, lamSachVanBan } from './normalize';
+import { chuanHoa, GIOI_HAN, lamSachVanBan } from './normalize';
 
 export const COOKIE = 'phien_thi';
 export const COOKIE_OPTS = {
@@ -51,7 +51,6 @@ type Luot = {
 	ten_thanh: string;
 	giao_xu: string;
 	giao_phan: string;
-	ngay_sinh: string;
 	token_hash: string | null;
 	started_at: number;
 	submitted_at: number | null;
@@ -64,7 +63,7 @@ type Luot = {
 	diem_tn: number | null;
 };
 
-const SELECT_LUOT = `SELECT l.id, l.ho_ten, l.ten_thanh, l.giao_xu, l.giao_phan, l.ngay_sinh, l.token_hash,
+const SELECT_LUOT = `SELECT l.id, l.ho_ten, l.ten_thanh, l.giao_xu, l.giao_phan, l.token_hash,
 	l.started_at, l.submitted_at, l.trang_thai, l.de_thi, l.so_lan_roi_tab, l.nop_tre,
 	b.dap_an_tn, b.tu_luan, b.diem_tn
 	FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id`;
@@ -79,7 +78,6 @@ function thongTin(l: Luot) {
 		ma_luot: l.id,
 		ten_thanh: l.ten_thanh,
 		ho_ten: l.ho_ten,
-		ngay_sinh: hienThiNgay(l.ngay_sinh),
 		giao_xu: l.giao_xu,
 		giao_phan: l.giao_phan
 	};
@@ -96,33 +94,36 @@ async function docCauHoi(db: D1Database, mas: string[]): Promise<Map<string, Cau
 
 type KetQuaStart = { res: Response; token?: string };
 
-/** POST /api/start: tạo lượt thi mới hoặc trả lại lượt đang có (cùng thiết bị). */
-export async function batDau(
-	db: D1Database,
-	body: unknown,
-	token: string | undefined,
-	requireRoster: boolean,
-	now = Date.now()
-): Promise<KetQuaStart> {
-	const v = kiemTraThongTin(body);
-	if (!v.ok) return { res: Response.json({ error: v.error }, { status: 400 }) };
-	const t = v.data;
-	const hoTenCH = chuanHoa(t.ho_ten);
-	const khoa = khoaDinhDanh(t.ho_ten, t.ngay_sinh);
+type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string };
 
-	if (requireRoster) {
-		const ok = await db
-			.prepare('SELECT 1 FROM hoc_vien_cho_phep WHERE ho_ten_chuan_hoa = ? AND ngay_sinh = ?')
-			.bind(hoTenCH, t.ngay_sinh)
-			.first();
-		if (!ok)
-			return {
-				res: Response.json({ error: 'Không tìm thấy bạn trong danh sách dự thi. Kiểm tra lại họ tên và ngày sinh.' }, { status: 403 })
-			};
-	}
+/** GET /api/tim-kiem: tìm khi đang gõ. Mỗi từ trong ô nhập phải khớp (không phân biệt dấu/hoa thường), tên Thánh có hay không đều được. */
+export async function timHocVien(db: D1Database, q: string) {
+	const tu = chuanHoa(q.slice(0, 100)).split(' ').filter(Boolean).slice(0, 8);
+	if (tu.join('').length < 2) return [];
+	const dieuKien = tu.map(() => `tim_kiem LIKE ? ESCAPE '\\'`).join(' AND ');
+	const { results } = await db
+		.prepare(
+			`SELECT h.id, h.ten_thanh, h.ho_ten, h.giao_xu, h.giao_phan,
+			EXISTS (SELECT 1 FROM luot_thi l WHERE l.hoc_vien_id = h.id) AS da_thi
+			FROM hoc_vien_cho_phep h WHERE ${dieuKien} ORDER BY h.tim_kiem, h.id LIMIT 8`
+		)
+		.bind(...tu.map((t) => `%${t.replace(/[\\%_]/g, '\\$&')}%`))
+		.all<HocVien & { da_thi: number }>();
+	return results.map((r) => ({ ...r, da_thi: r.da_thi === 1 }));
+}
 
-	const timTheoKhoa = () => db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE khoa_dinh_danh = ?').bind(khoa).first<CuRow>();
-	const cu = await timTheoKhoa();
+/** POST /api/start { hoc_vien_id }: tạo lượt thi mới hoặc trả lại lượt đang có (cùng thiết bị). */
+export async function batDau(db: D1Database, body: unknown, token: string | undefined, now = Date.now()): Promise<KetQuaStart> {
+	const hvId = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
+	if (!Number.isInteger(hvId) || (hvId as number) <= 0) return { res: Response.json({ error: 'Vui lòng chọn tên của bạn trong danh sách.' }, { status: 400 }) };
+	const hv = await db
+		.prepare('SELECT id, ten_thanh, ho_ten, giao_xu, giao_phan FROM hoc_vien_cho_phep WHERE id = ?')
+		.bind(hvId)
+		.first<HocVien>();
+	if (!hv) return { res: Response.json({ error: 'Không tìm thấy bạn trong danh sách dự thi. Vui lòng liên hệ giám thị.' }, { status: 404 }) };
+
+	const timTheoHv = () => db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE hoc_vien_id = ?').bind(hv.id).first<CuRow>();
+	const cu = await timTheoHv();
 	if (cu) return tiepTuc(db, cu, token);
 
 	const cfg = await docCauHinh(db);
@@ -131,24 +132,21 @@ export async function batDau(
 	const id = crypto.randomUUID();
 	const moi = taoToken();
 
-	// Atomic: lượt thi + bài làm. UNIQUE(khoa_dinh_danh) chặn hai request đồng thời.
+	// Atomic: lượt thi + bài làm. UNIQUE(hoc_vien_id) chặn hai request đồng thời.
 	const [ins] = await db.batch([
 		db
 			.prepare(
-				`INSERT INTO luot_thi (id, khoa_dinh_danh, ho_ten, ho_ten_chuan_hoa, ten_thanh, ten_thanh_chuan_hoa,
-				giao_xu, giao_xu_chuan_hoa, giao_phan, giao_phan_chuan_hoa, ngay_sinh, token_hash, started_at, de_thi)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (khoa_dinh_danh) DO NOTHING`
+				`INSERT INTO luot_thi (id, hoc_vien_id, ho_ten, ho_ten_chuan_hoa, ten_thanh, ten_thanh_chuan_hoa,
+				giao_xu, giao_xu_chuan_hoa, giao_phan, giao_phan_chuan_hoa, token_hash, started_at, de_thi)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (hoc_vien_id) DO NOTHING`
 			)
 			.bind(
-				id, khoa, t.ho_ten, hoTenCH, t.ten_thanh, chuanHoa(t.ten_thanh), t.giao_xu, chuanHoa(t.giao_xu),
-				t.giao_phan, chuanHoa(t.giao_phan), t.ngay_sinh, await sha256Hex(moi), now, JSON.stringify(de)
+				id, hv.id, hv.ho_ten, chuanHoa(hv.ho_ten), hv.ten_thanh, chuanHoa(hv.ten_thanh), hv.giao_xu, chuanHoa(hv.giao_xu),
+				hv.giao_phan, chuanHoa(hv.giao_phan), await sha256Hex(moi), now, JSON.stringify(de)
 			),
 		db.prepare('INSERT INTO bai_lam (luot_id) SELECT id FROM luot_thi WHERE id = ?').bind(id)
 	]);
-	if (ins.meta.changes === 0) {
-		const r = await timTheoKhoa();
-		return tiepTuc(db, r!, token);
-	}
+	if (ins.meta.changes === 0) return tiepTuc(db, (await timTheoHv())!, token);
 	return { res: Response.json({ trang_thai: 'dang_thi' }), token: moi };
 }
 
@@ -312,9 +310,4 @@ export async function ketQua(db: D1Database, l: Luot) {
 		nop_tre: l.nop_tre === 1,
 		submitted_at: l.submitted_at
 	};
-}
-
-export async function danhSachGiaoXu(db: D1Database) {
-	const { results } = await db.prepare('SELECT ten, giao_phan FROM giao_xu ORDER BY ten').all<{ ten: string; giao_phan: string }>();
-	return results;
 }

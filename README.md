@@ -7,17 +7,17 @@ Web thi trắc nghiệm + tự luận cho khoảng 100–300 học viên thi cù
 ```
 migrations/              Schema D1 + dữ liệu mẫu
 src/lib/server/
-  normalize.ts           Chuẩn hóa chuỗi, validate thông tin, ngày sinh
+  normalize.ts           Chuẩn hóa chuỗi (bỏ dấu, chữ thường, gộp khoảng trắng)
   exam.ts                Random đề (crypto.getRandomValues), chấm TN, luật thời gian
   thi.ts                 start / save / submit / kết quả (D1)
   sheets.ts              Client Google Sheets (JWT Web Crypto, retry 429), đồng bộ, resync
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
 src/routes/
   layout.css             Tailwind + daisyUI, theme light tùy biến theo Kumo (UI Cloudflare): chữ 14px, ô/nút cao 36px, nút chính cam
-  +page.svelte           Form 5 trường
+  +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
-  api/start|save|submit|giao-xu|admin/import|admin/resync
+  api/tim-kiem|start|save|submit|admin/import|admin/resync
 cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 ```
 
@@ -57,7 +57,7 @@ npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_gia
    npx wrangler secret put SHEET_ID                # phần giữa /d/ và /edit trong URL của Sheet
    npx wrangler secret put ADMIN_TOKEN             # chuỗi ngẫu nhiên ≥ 16 ký tự, ví dụ: openssl rand -hex 24
    ```
-4. **Danh sách dự thi**: muốn chỉ cho học viên có tên trong danh sách được thi thì đổi `"REQUIRE_ROSTER": "true"` trong `wrangler.jsonc`.
+4. **Danh sách học viên**: nạp bằng import từ Sheet (xem bên dưới). Chỉ người có tên trong danh sách mới thi được.
 5. **Deploy**: `npm run deploy`.
 
 ### Cấu hình đề thi
@@ -98,27 +98,26 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 - Đáp án là chữ cái ứng với lựa chọn: G là A, H là B, …
 - Điểm để trống thì mặc định là 1; dùng được dấu phẩy thập phân, ví dụ `1,5`.
 
-**`GiaoXu`** (tùy chọn, dùng để gợi ý khi nhập): A: Tên giáo xứ | B: Giáo phận
-
-**`HocVien`** (tùy chọn, dùng khi `REQUIRE_ROSTER=true`): A: Họ và tên | B: Ngày sinh (dd/mm/yyyy, nên định dạng cột là _Văn bản thuần túy_) | C: Tên Thánh | D: Giáo xứ | E: Giáo phận. Chỉ họ tên và ngày sinh được dùng để đối chiếu; các cột còn lại chỉ để hiển thị.
+**`HocVien`** (bắt buộc khi import): A: Tên Thánh (**có thể để trống** nếu chưa có) | B: Họ và tên | C: Giáo xứ | D: Giáo phận (hai cột cuối tùy chọn, chỉ để hiển thị và giúp phân biệt người trùng tên).
 
 **`KetQua`** (bắt buộc có tab, có thể để trống): app ghi kết quả vào đây. Lần import đầu tiên sẽ tự ghi dòng tiêu đề nếu tab đang trống. Các cột theo thứ tự:
 
-Mã lượt · Tên Thánh · Họ và tên · Ngày sinh · Giáo xứ · Giáo phận · Giờ bắt đầu · Giờ nộp · Nộp trễ · Số lần rời tab · Điểm TN · Bài tự luận · **Điểm TL** (giáo viên nhập) · Tổng điểm (công thức = Điểm TN + Điểm TL)
+Mã lượt · Tên Thánh · Họ và tên · Giáo xứ · Giáo phận · Giờ bắt đầu · Giờ nộp · Nộp trễ · Số lần rời tab · Điểm TN · Bài tự luận · **Điểm TL** (giáo viên nhập) · Tổng điểm (công thức = Điểm TN + Điểm TL)
 
 Mọi chuỗi do học viên nhập mà bắt đầu bằng `=`, `+`, `-`, `@` đều được thêm `'` phía trước để chống formula injection.
 
 ### Import và resync
 
 ```bash
-# Nạp CauHoi (+ GiaoXu, HocVien nếu có tab) từ Sheet vào D1, thay toàn bộ dữ liệu cũ của các bảng đó
+# Nạp CauHoi và HocVien từ Sheet vào D1
 curl -X POST https://<app>/api/admin/import -H "Authorization: Bearer $ADMIN_TOKEN"
 # Đẩy lại các bài đã nộp nhưng chưa lên được Sheet (sync_pending = 1)
 curl -X POST https://<app>/api/admin/resync -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
+- **Câu hỏi** được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người *chưa thi* cũng được (dòng cũ bị xóa, dòng mới được tạo); với người *đã thi*, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
 - Import sẽ **từ chối** khi đang có lượt thi chưa nộp, vì đề đã phát tham chiếu tới mã câu hỏi. Thêm `?force=1` nếu chắc chắn. Nếu Sheet có lỗi, import trả danh sách lỗi theo dòng và không ghi gì vào D1.
-- Resync đọc cột A của `KetQua` để tránh tạo hàng trùng. Lượt đã có trên Sheet thì chỉ cập nhật cột A–L, không đụng cột Điểm TL. Lượt vừa nộp chưa quá 2 phút sẽ được bỏ qua, vì bước đồng bộ ngay sau khi nộp có thể vẫn đang chạy.
+- Resync đọc cột A của `KetQua` để tránh tạo hàng trùng. Lượt đã có trên Sheet thì chỉ cập nhật cột A–K, không đụng cột Điểm TL (L). Lượt vừa nộp chưa quá 2 phút sẽ được bỏ qua, vì bước đồng bộ ngay sau khi nộp có thể vẫn đang chạy.
 
 ### Cron tự động resync (tùy chọn)
 
@@ -132,7 +131,7 @@ npm run deploy:cron     # chạy mỗi 10 phút
 
 ## Luật thi (kiểm tra ở server)
 
-- **Khóa định danh** = họ tên chuẩn hóa (bỏ dấu, kể cả đ; chữ thường; gộp khoảng trắng) + `|` + ngày sinh. Khóa này có `UNIQUE` ở bảng `luot_thi`. Tên Thánh, Giáo xứ, Giáo phận không nằm trong khóa; chúng được lưu nguyên dạng gốc kèm một bản chuẩn hóa để lọc.
+- **Định danh**: học viên *chọn đúng dòng của mình* trong danh sách (tìm khi gõ), không tự nhập thông tin. `luot_thi.hoc_vien_id` có `UNIQUE` nên mỗi dòng trong danh sách chỉ thi được một lần, kể cả khi hai request gửi cùng lúc. Họ tên, Tên Thánh, Giáo xứ, Giáo phận được sao vào `luot_thi` (bản gốc có dấu kèm bản chuẩn hóa) tại thời điểm bắt đầu thi.
 - **Thời gian** chỉ tính từ `started_at` do server ghi. Chưa đủ T/2 thì không được nộp. Nộp sau T + dung sai thì vẫn nhận nhưng gắn `nop_tre`, và chỉ chấm các đáp án đã lưu trước hạn (sau hạn thì `save` bị từ chối).
 - **Phiên thi**: token ngẫu nhiên nằm trong cookie httpOnly, DB chỉ lưu SHA-256 của token. Mọi thao tác save/submit đều phải có token này.
 - **Nộp bài idempotent**: dùng `UPDATE … WHERE trang_thai = 'dang_thi'` (và `diem_tn IS NULL`) trong cùng một batch, nên nộp lặp sẽ trả lại đúng kết quả cũ.
@@ -140,12 +139,14 @@ npm run deploy:cron     # chạy mỗi 10 phút
 
 ## Các quyết định khi đặc tả chưa rõ (chọn phương án an toàn)
 
-- **Vào lại từ thiết bị khác**: cùng trình duyệt (còn cookie) thì vào lại đúng lượt đang làm. Thiết bị khác thì bị chặn với thông báo "liên hệ giám thị", để người biết họ tên và ngày sinh không chiếm được bài của người khác. Giám thị mở khóa như sau, rồi học viên nhập lại thông tin ở thiết bị mới:
+- **Vào lại từ thiết bị khác**: cùng trình duyệt (còn cookie) thì vào lại đúng lượt đang làm. Thiết bị khác thì bị chặn với thông báo "liên hệ giám thị", để người biết tên người khác không chiếm được bài của họ. Giám thị mở khóa như sau, rồi học viên tìm và chọn lại tên ở thiết bị mới:
   ```bash
-  npx wrangler d1 execute DB --remote --command "UPDATE luot_thi SET token_hash = NULL WHERE khoa_dinh_danh = 'nguyen van an|2010-02-01'"
+  npx wrangler d1 execute DB --remote --command "UPDATE luot_thi SET token_hash = NULL WHERE ho_ten_chuan_hoa = 'nguyen van an'"  # thêm AND ten_thanh_chuan_hoa = '...' nếu trùng tên
   ```
 - **Bỏ dở không nộp**: nếu học viên quay lại (cùng trình duyệt) sau khi hết giờ, trang sẽ tự nộp ngay. Nếu đã quá T + dung sai thì bài được đánh dấu nộp trễ và chấm theo đáp án đã lưu. Lượt không bao giờ quay lại vẫn ở trạng thái `dang_thi`; xem bằng `SELECT * FROM luot_thi WHERE trang_thai='dang_thi'`.
-- **Đã thi rồi**: dùng lại form từ thiết bị khác sẽ chỉ nhận thông báo "đã thi rồi", không xem được điểm (điểm chỉ hiện ở trình duyệt đã dùng để thi).
-- **Ngày sinh** nhập dạng văn bản `dd/mm/yyyy`, không dùng `<input type="date">`, vì nhiều điện thoại hiển thị ngày theo kiểu mm/dd.
+- **Đã thi rồi**: khi tìm thấy tên một người đã có lượt thi, kết quả hiện "Đã có lượt thi, hãy liên hệ giám thị" và không chọn được. Điểm chỉ xem được ở trình duyệt đã dùng để thi.
+- **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng *cả* tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.
+- **Ai cũng tìm được tên trong danh sách**: ô tìm không yêu cầu đăng nhập, nên ai mở trang cũng thấy tên, Giáo xứ và Giáo phận của người khớp (tối đa 8 dòng, phải gõ từ 2 ký tự, không hiện ngày sinh hay điểm). Nếu danh sách cần giữ kín, đặt cả trang sau Cloudflare Access hoặc chỉ mở link cho lớp thi.
+- **Trang chào**: tiêu đề và phụ đề nằm ở hai hằng `TIEU_DE`, `PHU_DE` đầu file `src/routes/+page.svelte`.
 - **Quota Sheets** là khoảng 60 lượt ghi mỗi phút. Khi nhiều người nộp cùng lúc, có thể một số bài không lên Sheet ngay (sau khi đã retry). Các bài đó vẫn giữ `sync_pending = 1` để resync hoặc cron đẩy lên sau. Resync gom nhiều hàng vào một request.
-- **Bài tự luận** tối đa 5000 ký tự mỗi câu. Họ và tên tối đa 100 ký tự; Tên Thánh, Giáo xứ, Giáo phận tối đa 60 ký tự.
+- **Bài tự luận** tối đa 5000 ký tự mỗi câu. Khi import, họ và tên tối đa 100 ký tự; Tên Thánh, Giáo xứ, Giáo phận tối đa 60 ký tự.

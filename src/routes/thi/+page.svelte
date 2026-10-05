@@ -164,8 +164,8 @@
 <header class="card card-border sticky top-2 z-10 mb-4 bg-base-100 md:static">
 	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
 		<div class="flex min-w-0 flex-col">
-			<strong>{tt.ten_thanh} {tt.ho_ten}</strong>
-			<span class="text-sm opacity-70">{tt.giao_xu}, {tt.giao_phan}</span>
+			<strong>{[tt.ten_thanh, tt.ho_ten].filter(Boolean).join(' ')}</strong>
+			{#if tt.giao_xu || tt.giao_phan}<span class="text-sm opacity-70">{[tt.giao_xu, tt.giao_phan].filter(Boolean).join(', ')}</span>{/if}
 		</div>
 		<div
 			class={['self-center text-2xl font-bold tabular-nums', conLai < 5 * 60_000 && 'text-error']}

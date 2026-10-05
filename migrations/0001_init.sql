@@ -10,23 +10,16 @@ CREATE TABLE cau_hoi (
 	CHECK (loai = 'TL' OR (lua_chon IS NOT NULL AND dap_an IS NOT NULL))
 );
 
--- Danh sách học viên được phép thi (chỉ dùng khi REQUIRE_ROSTER=true). Khớp theo họ tên chuẩn hóa + ngày sinh.
+-- Danh sách học viên được phép thi. Học viên tìm tên rồi chọn đúng dòng của mình; id là khóa chống thi lần hai.
+-- khoa = ho_ten|ten_thanh chuẩn hóa + '#' + số thứ tự trong nhóm trùng, để import lại cập nhật đúng dòng cũ (giữ nguyên id).
 CREATE TABLE hoc_vien_cho_phep (
 	id INTEGER PRIMARY KEY,
+	khoa TEXT NOT NULL UNIQUE,
+	ten_thanh TEXT NOT NULL DEFAULT '', -- có thể trống: chưa có tên Thánh
 	ho_ten TEXT NOT NULL,
-	ho_ten_chuan_hoa TEXT NOT NULL,
-	ngay_sinh TEXT NOT NULL, -- YYYY-MM-DD
-	ten_thanh TEXT,
-	giao_xu TEXT,
-	giao_phan TEXT,
-	UNIQUE (ho_ten_chuan_hoa, ngay_sinh)
-);
-
--- Chỉ phục vụ gợi ý nhập.
-CREATE TABLE giao_xu (
-	id INTEGER PRIMARY KEY,
-	ten TEXT NOT NULL,
-	giao_phan TEXT NOT NULL
+	tim_kiem TEXT NOT NULL, -- chuẩn hóa của "tên Thánh + họ tên", để tìm khi gõ
+	giao_xu TEXT NOT NULL DEFAULT '',
+	giao_phan TEXT NOT NULL DEFAULT ''
 );
 
 -- Cấu hình chung (một hàng duy nhất).
@@ -44,8 +37,8 @@ CREATE TABLE cau_hinh_nhom (
 
 CREATE TABLE luot_thi (
 	id TEXT PRIMARY KEY, -- Mã lượt
-	khoa_dinh_danh TEXT NOT NULL UNIQUE, -- ho_ten_chuan_hoa|YYYY-MM-DD: chặn thi lần hai ở tầng DB
-	ho_ten TEXT NOT NULL,
+	hoc_vien_id INTEGER NOT NULL UNIQUE REFERENCES hoc_vien_cho_phep (id), -- chặn thi lần hai ở tầng DB
+	ho_ten TEXT NOT NULL, -- bản sao tại thời điểm thi
 	ho_ten_chuan_hoa TEXT NOT NULL,
 	ten_thanh TEXT NOT NULL,
 	ten_thanh_chuan_hoa TEXT NOT NULL,
@@ -53,7 +46,6 @@ CREATE TABLE luot_thi (
 	giao_xu_chuan_hoa TEXT NOT NULL,
 	giao_phan TEXT NOT NULL,
 	giao_phan_chuan_hoa TEXT NOT NULL,
-	ngay_sinh TEXT NOT NULL, -- YYYY-MM-DD
 	token_hash TEXT UNIQUE, -- SHA-256 của token phiên; NULL = cho phép nhận lại từ thiết bị khác (giám thị đặt)
 	started_at INTEGER NOT NULL, -- epoch ms, do server ghi
 	submitted_at INTEGER,

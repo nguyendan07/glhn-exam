@@ -1,37 +1,56 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 
-	let f = $state({ ten_thanh: '', ho_ten: '', ngay_sinh: '', giao_xu: '', giao_phan: '' });
-	let ds = $state<{ ten: string; giao_phan: string }[]>([]);
+	// Nội dung trang chào: sửa tại đây.
+	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi';
+	const PHU_DE = 'Hãy nhập tên của bạn để tìm và bắt đầu làm bài.';
+
+	type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string; da_thi: boolean };
+	const ten = (h: HocVien) => [h.ten_thanh, h.ho_ten].filter(Boolean).join(' ');
+	const noi = (h: HocVien) => [h.giao_xu, h.giao_phan].filter(Boolean).join(', ');
+
+	let q = $state('');
+	let ds = $state<HocVien[]>([]);
+	let daTim = $state(false); // đã có kết quả cho chuỗi đang gõ
+	let chon = $state<HocVien | null>(null);
 	let loi = $state('');
 	let dangGui = $state(false);
-	const dsGiaoPhan = $derived([...new Set(ds.map((x) => x.giao_phan))]);
+	let hen: ReturnType<typeof setTimeout> | undefined;
+	let huy: AbortController | undefined;
 
-	onMount(async () => {
-		try {
-			const r = await fetch('/api/giao-xu');
-			if (r.ok) ds = (await r.json()) as typeof ds;
-		} catch {
-			// Chỉ là gợi ý, bỏ qua lỗi.
+	function gõ() {
+		chon = null;
+		loi = '';
+		daTim = false;
+		clearTimeout(hen);
+		huy?.abort();
+		if (q.trim().length < 2) {
+			ds = [];
+			return;
 		}
-	});
-
-	function chonGiaoXu() {
-		const m = ds.filter((x) => x.ten === f.giao_xu.trim());
-		if (m.length === 1) f.giao_phan = m[0].giao_phan;
+		hen = setTimeout(async () => {
+			huy = new AbortController();
+			try {
+				const r = await fetch(`/api/tim-kiem?q=${encodeURIComponent(q.trim())}`, { signal: huy.signal });
+				if (!r.ok) throw new Error();
+				ds = (await r.json()) as HocVien[];
+				daTim = true;
+			} catch (e) {
+				if ((e as Error).name !== 'AbortError') loi = 'Không tìm được. Kiểm tra mạng và thử lại.';
+			}
+		}, 250);
 	}
 
-	async function batDau(e: SubmitEvent) {
-		e.preventDefault();
+	async function batDau() {
+		if (!chon || dangGui) return;
+		if (!confirm(`Bạn là ${ten(chon)}? Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm OK.`)) return;
 		loi = '';
-		if (!confirm('Kiểm tra kỹ thông tin. Sau khi bắt đầu sẽ không sửa được và đồng hồ bắt đầu chạy. Bắt đầu thi?')) return;
 		dangGui = true;
 		try {
 			const r = await fetch('/api/start', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(f)
+				body: JSON.stringify({ hoc_vien_id: chon.id })
 			});
 			const d: any = await r.json();
 			if (!r.ok) loi = d.error ?? 'Có lỗi xảy ra, vui lòng thử lại.';
@@ -45,59 +64,72 @@
 </script>
 
 <div class="mx-auto max-w-xl">
-<h1 class="mb-4 text-2xl font-bold md:text-3xl">Thông tin dự thi</h1>
+	<header class="mb-6 text-center">
+		<h1 class="text-3xl font-bold md:text-4xl">{TIEU_DE}</h1>
+		<p class="mt-2 text-base-content/70">{PHU_DE}</p>
+	</header>
 
-<form class="card card-border bg-base-100" onsubmit={batDau}>
-	<div class="card-body">
-		<div class="fieldset">
-			<label class="fieldset-legend" for="ten_thanh">Tên Thánh</label>
-			<input id="ten_thanh" class="input w-full" type="text" bind:value={f.ten_thanh} required maxlength="60" autocomplete="off" aria-describedby="h-tt" />
-			<p class="label whitespace-normal" id="h-tt">Ví dụ: Phêrô, Maria, Giuse...</p>
-		</div>
-		<div class="fieldset">
-			<label class="fieldset-legend" for="ho_ten">Họ và tên</label>
-			<input id="ho_ten" class="input w-full" type="text" bind:value={f.ho_ten} required maxlength="100" autocomplete="name" aria-describedby="h-ht" />
-			<p class="label whitespace-normal" id="h-ht">Ghi đầy đủ, có dấu. Ví dụ: Nguyễn Văn An</p>
-		</div>
-		<div class="fieldset">
-			<label class="fieldset-legend" for="ngay_sinh">Ngày tháng năm sinh</label>
-			<input
-				id="ngay_sinh"
-				class="input w-full"
-				type="text"
-				inputmode="numeric"
-				placeholder="dd/mm/yyyy"
-				pattern={'\\d{1,2}/\\d{1,2}/\\d{4}'}
-				bind:value={f.ngay_sinh}
-				required
-				maxlength="10"
-				autocomplete="bday"
-				aria-describedby="h-ns"
-			/>
-			<p class="label whitespace-normal" id="h-ns">Định dạng dd/mm/yyyy. Ví dụ: 05/09/2010</p>
-		</div>
-		<div class="fieldset">
-			<label class="fieldset-legend" for="giao_xu">Giáo xứ</label>
-			<input id="giao_xu" class="input w-full" type="text" list="ds-giao-xu" bind:value={f.giao_xu} oninput={chonGiaoXu} required maxlength="60" autocomplete="off" aria-describedby="h-gx" />
-			<datalist id="ds-giao-xu">
-				{#each ds as x (x.ten + x.giao_phan)}<option value={x.ten}>{x.giao_phan}</option>{/each}
-			</datalist>
-			<p class="label whitespace-normal" id="h-gx">Gõ để chọn trong danh sách gợi ý, hoặc tự nhập nếu không có.</p>
-		</div>
-		<div class="fieldset">
-			<label class="fieldset-legend" for="giao_phan">Giáo phận</label>
-			<input id="giao_phan" class="input w-full" type="text" list="ds-giao-phan" bind:value={f.giao_phan} required maxlength="60" autocomplete="off" aria-describedby="h-gp" />
-			<datalist id="ds-giao-phan">
-				{#each dsGiaoPhan as x (x)}<option value={x}></option>{/each}
-			</datalist>
-			<p class="label whitespace-normal" id="h-gp">Tự điền khi chọn giáo xứ có trong danh sách; vẫn sửa được.</p>
-		</div>
+	<div class="card card-border bg-base-100">
+		<div class="card-body">
+			<div class="fieldset">
+				<label class="fieldset-legend" for="ten">Họ và tên</label>
+				<input
+					id="ten"
+					class="input w-full"
+					type="text"
+					bind:value={q}
+					oninput={gõ}
+					maxlength="100"
+					autocomplete="off"
+					aria-describedby="h-ten"
+					aria-controls="kq-tim"
+				/>
+				<p class="label whitespace-normal" id="h-ten">
+					Có Tên Thánh thì ghi kèm, ví dụ: Phêrô Nguyễn Văn An. Chưa có Tên Thánh thì chỉ cần ghi họ và tên.
+				</p>
+			</div>
 
-		{#if loi}<div class="alert alert-error" role="alert">{loi}</div>{/if}
+			<div id="kq-tim" aria-live="polite">
+				{#if chon}
+					<div class="alert alert-success alert-soft">
+						<div>
+							<div class="font-semibold">{ten(chon)}</div>
+							{#if noi(chon)}<div class="text-sm">{noi(chon)}</div>{/if}
+						</div>
+					</div>
+				{:else if ds.length}
+					<ul class="menu w-full rounded-box border border-base-300 p-1">
+						{#each ds as h (h.id)}
+							<li>
+								{#if h.da_thi}
+									<div class="pointer-events-none flex flex-col items-start">
+										<span class="font-semibold">{ten(h)}</span>
+										{#if noi(h)}<span class="text-sm opacity-70">{noi(h)}</span>{/if}
+										<span class="text-sm text-warning">Đã có lượt thi. Nếu đây là bạn, hãy liên hệ giám thị.</span>
+									</div>
+								{:else}
+									<button type="button" onclick={() => (chon = h)}>
+										<span class="flex flex-col items-start text-left">
+											<span class="font-semibold">{ten(h)}</span>
+											{#if noi(h)}<span class="text-sm opacity-70">{noi(h)}</span>{/if}
+										</span>
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{:else if daTim}
+					<div class="alert alert-warning alert-soft">
+						Không thấy tên bạn trong danh sách. Hãy kiểm tra lại cách gõ hoặc liên hệ giám thị.
+					</div>
+				{/if}
+			</div>
 
-		<button class="btn btn-primary btn-block mt-2" type="submit" disabled={dangGui}>
-			{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu thi{/if}
-		</button>
+			{#if loi}<div class="alert alert-error" role="alert">{loi}</div>{/if}
+
+			<button class="btn btn-primary btn-block mt-2" type="button" disabled={!chon || dangGui} onclick={batDau}>
+				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu thi{/if}
+			</button>
+		</div>
 	</div>
-</form>
 </div>

@@ -13,11 +13,10 @@
 <section class="card card-border bg-base-100">
 	<div class="card-body">
 		<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 [&_dd]:font-semibold [&_dt]:opacity-70">
-			<dt>Tên Thánh</dt><dd>{tt.ten_thanh}</dd>
+			{#if tt.ten_thanh}<dt>Tên Thánh</dt><dd>{tt.ten_thanh}</dd>{/if}
 			<dt>Họ và tên</dt><dd>{tt.ho_ten}</dd>
-			<dt>Ngày sinh</dt><dd>{tt.ngay_sinh}</dd>
-			<dt>Giáo xứ</dt><dd>{tt.giao_xu}</dd>
-			<dt>Giáo phận</dt><dd>{tt.giao_phan}</dd>
+			{#if tt.giao_xu}<dt>Giáo xứ</dt><dd>{tt.giao_xu}</dd>{/if}
+			{#if tt.giao_phan}<dt>Giáo phận</dt><dd>{tt.giao_phan}</dd>{/if}
 			<dt>Nộp lúc</dt>
 			<dd>{data.submitted_at ? new Date(data.submitted_at).toLocaleString('vi-VN') : ''}</dd>
 		</dl>
