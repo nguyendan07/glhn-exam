@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import logo from '#lib/assets/gpthaibinh90years.webp';
 
 	// Nội dung trang chào: sửa tại đây.
@@ -14,6 +15,7 @@
 	let ds = $state<HocVien[]>([]);
 	let daTim = $state(false); // đã có kết quả cho chuỗi đang gõ
 	let chon = $state<HocVien | null>(null);
+	let nutBatDau: HTMLButtonElement;
 	let loi = $state('');
 	let dangGui = $state(false);
 	let hen: ReturnType<typeof setTimeout> | undefined;
@@ -42,9 +44,19 @@
 		}, 250);
 	}
 
+	// Chọn một dòng: điền tên vào ô nhập, đóng danh sách, chuyển focus sang nút bắt đầu.
+	function chonHocVien(h: HocVien) {
+		clearTimeout(hen);
+		huy?.abort();
+		chon = h;
+		q = ten(h);
+		loi = '';
+		tick().then(() => nutBatDau.focus());
+	}
+
 	async function batDau() {
 		if (!chon || dangGui) return;
-		if (!confirm(`Bạn là ${ten(chon)}? Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm OK.`)) return;
+		if (!confirm(`Bạn là ${ten(chon)}${noi(chon) ? ` (${noi(chon)})` : ''}? Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm OK.`)) return;
 		loi = '';
 		dangGui = true;
 		try {
@@ -92,14 +104,7 @@
 			</div>
 
 			<div id="kq-tim" aria-live="polite">
-				{#if chon}
-					<div class="alert alert-success alert-soft">
-						<div>
-							<div class="font-semibold">{ten(chon)}</div>
-							{#if noi(chon)}<div class="text-sm">{noi(chon)}</div>{/if}
-						</div>
-					</div>
-				{:else if ds.length}
+				{#if ds.length && !chon}
 					<ul class="menu w-full rounded-box border border-base-300 p-1">
 						{#each ds as h (h.id)}
 							<li>
@@ -110,7 +115,7 @@
 										<span class="text-sm text-warning">Đã có lượt thi. Nếu đây là bạn, hãy liên hệ giám thị.</span>
 									</div>
 								{:else}
-									<button type="button" onclick={() => (chon = h)}>
+									<button type="button" onclick={() => chonHocVien(h)}>
 										<span class="flex flex-col items-start text-left">
 											<span class="font-semibold">{ten(h)}</span>
 											{#if noi(h)}<span class="text-sm opacity-85">{noi(h)}</span>{/if}
@@ -120,7 +125,7 @@
 							</li>
 						{/each}
 					</ul>
-				{:else if daTim}
+				{:else if daTim && !chon}
 					<div class="alert alert-warning alert-soft">
 						Không thấy tên bạn trong danh sách. Hãy kiểm tra lại cách gõ hoặc liên hệ giám thị.
 					</div>
@@ -129,7 +134,7 @@
 
 			{#if loi}<div class="alert alert-error" role="alert">{loi}</div>{/if}
 
-			<button class="btn btn-primary btn-block mt-2" type="button" disabled={!chon || dangGui} onclick={batDau}>
+			<button bind:this={nutBatDau} class="btn btn-primary btn-block mt-2" type="button" disabled={!chon || dangGui} onclick={batDau}>
 				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu thi{/if}
 			</button>
 		</div>
