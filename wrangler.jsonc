@@ -17,7 +17,26 @@
 			"database_id": "7ce38b38-3102-4c80-bca7-00b4e51dce73",
 			"migrations_dir": "migrations"
 		}
-	]
+	],
+	"observability": {
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"redact_query_string": false,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": true,
+			"persist": true
+		},
+		"traces": {
+			"enabled": false,
+			"head_sampling_rate": 1,
+			"persist": true
+		},
+		"issues": {
+			"enabled": true
+		}
+	}
 	// Secrets (đặt bằng `wrangler secret put`, local đặt trong .dev.vars):
 	// GOOGLE_SA_EMAIL, GOOGLE_SA_PRIVATE_KEY, SHEET_ID, ADMIN_TOKEN
 }

@@ -7,10 +7,29 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "glhn-exam",
-						"database_id": "7ce38b38-3102-4c80-bca7-00b4e51dce73"
+			"database_name": "glhn-thi",
+			"database_id": "7ce38b38-3102-4c80-bca7-00b4e51dce73"
 		}
-	]
+	],
+	"observability": {
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"redact_query_string": false,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": true,
+			"persist": true
+		},
+		"traces": {
+			"enabled": false,
+			"head_sampling_rate": 1,
+			"persist": true
+		},
+		"issues": {
+			"enabled": true
+		}
+	}
 	// Secrets riêng cho worker này: GOOGLE_SA_EMAIL, GOOGLE_SA_PRIVATE_KEY, SHEET_ID
 	// npx wrangler secret put GOOGLE_SA_EMAIL -c cron/wrangler.jsonc
 }
