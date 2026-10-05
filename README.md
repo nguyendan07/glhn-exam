@@ -56,17 +56,17 @@ Hướng dẫn cho trường hợp đã đẩy code lên GitHub (`nguyendan07/gl
 
 ### Bước 1. Kiểm tra cấu hình trong repo
 
-- `wrangler.jsonc` có `"name": "glhn-thi"` và binding **`DB`** với `database_id` của D1 `glhn-thi` (đã điền sẵn: `7ce38b38-…`). Mã ứng dụng chỉ dùng binding tên `DB`, đừng đổi tên.
+- `wrangler.jsonc` có `"name": "glhn-exam"` và binding **`DB`** với `database_id` của D1 `glhn-exam` (đã điền sẵn: `7ce38b38-…`). Mã ứng dụng chỉ dùng binding tên `DB`, đừng đổi tên.
 - **Tên Worker trên dashboard phải trùng `name` trong `wrangler.jsonc`**, nếu không build sẽ thất bại.
-- Tạo D1 mới (hoặc đổi D1) thì: dashboard → **Storage & databases → D1 SQL database → Create database** (tên `glhn-thi`, nên chọn vùng gần nhất, ví dụ Asia-Pacific), chép **Database ID** vào `wrangler.jsonc` (và `cron/wrangler.jsonc` nếu dùng cron), commit và push.
+- Tạo D1 mới (hoặc đổi D1) thì: dashboard → **Storage & databases → D1 SQL database → Create database** (tên `glhn-exam`, nên chọn vùng gần nhất, ví dụ Asia-Pacific), chép **Database ID** vào `wrangler.jsonc` (và `cron/wrangler.jsonc` nếu dùng cron), commit và push.
 
 ### Bước 2. Tạo Worker từ repo GitHub
 
-1. Vào **Workers & Pages → Create application → Import a repository** (hoặc *Connect to Git*), chọn tài khoản GitHub và repo `glhn-exam`.
+1. Vào **Workers & Pages → Create application → Import a repository** (hoặc _Connect to Git_), chọn tài khoản GitHub và repo `glhn-exam`.
 2. Điền:
    | Mục | Giá trị |
    |---|---|
-   | Project / Worker name | `glhn-thi` (đúng bằng `name` trong `wrangler.jsonc`) |
+   | Project / Worker name | `glhn-exam` (đúng bằng `name` trong `wrangler.jsonc`) |
    | Production branch | `main` |
    | Root directory | để trống (thư mục gốc) |
    | Build command | `npm run build` |
@@ -85,27 +85,27 @@ Hai file `migrations/0001_init.sql` (bảng) và `0002_cau_hinh_mac_dinh.sql` (c
   npm run db:migrate:remote
   ```
   Wrangler ghi nhớ file nào đã chạy, nên chạy lại hoặc thêm migration mới về sau đều an toàn.
-- **Cách B, trên dashboard:** D1 → `glhn-thi` → tab **Console** → dán lần lượt nội dung hai file trên rồi **Execute**. Cách này không ghi vào bảng theo dõi migration của Wrangler; nếu về sau chạy cách A, Wrangler sẽ chạy lại `0001` và báo "table already exists". Hãy chọn một cách và dùng nhất quán.
+- **Cách B, trên dashboard:** D1 → `glhn-exam` → tab **Console** → dán lần lượt nội dung hai file trên rồi **Execute**. Cách này không ghi vào bảng theo dõi migration của Wrangler; nếu về sau chạy cách A, Wrangler sẽ chạy lại `0001` và báo "table already exists". Hãy chọn một cách và dùng nhất quán.
 
 ### Bước 4. Đặt secrets (biến bí mật lúc chạy)
 
-Worker `glhn-thi` → **Settings → Variables and Secrets → Add**, kiểu **Secret**:
+Worker `glhn-exam` → **Settings → Variables and Secrets → Add**, kiểu **Secret**:
 
-| Tên | Giá trị |
-|---|---|
-| `GOOGLE_SA_EMAIL` | `client_email` trong file JSON của service account |
+| Tên                     | Giá trị                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `GOOGLE_SA_EMAIL`       | `client_email` trong file JSON của service account                        |
 | `GOOGLE_SA_PRIVATE_KEY` | `private_key` trong file JSON, dán nguyên (cả `-----BEGIN …` và các `\n`) |
-| `SHEET_ID` | phần giữa `/d/` và `/edit` trong URL Google Sheet |
-| `ADMIN_TOKEN` | chuỗi ngẫu nhiên từ 16 ký tự trở lên, ví dụ chạy `openssl rand -hex 24` |
+| `SHEET_ID`              | phần giữa `/d/` và `/edit` trong URL Google Sheet                         |
+| `ADMIN_TOKEN`           | chuỗi ngẫu nhiên từ 16 ký tự trở lên, ví dụ chạy `openssl rand -hex 24`   |
 
-Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Variables and secrets** là biến chỉ dùng *lúc build* và **không** truy cập được khi chạy, đừng đặt secrets ở đó.
+Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Variables and secrets** là biến chỉ dùng _lúc build_ và **không** truy cập được khi chạy, đừng đặt secrets ở đó.
 
 ### Bước 5. Nạp đề thi và danh sách học viên
 
-1. Tạo file Sheet (xem [Tạo nhanh file Sheet từ các file CSV](#tạo-nhanh-file-sheet-từ-các-file-csv)), tải lên Google Sheets và chia sẻ cho email service account (quyền *Người chỉnh sửa*).
+1. Tạo file Sheet (xem [Tạo nhanh file Sheet từ các file CSV](#tạo-nhanh-file-sheet-từ-các-file-csv)), tải lên Google Sheets và chia sẻ cho email service account (quyền _Người chỉnh sửa_).
 2. Gọi import (thay địa chỉ bằng URL của Worker, xem ở trang Worker hoặc **Settings → Domains & Routes**):
    ```bash
-   curl -X POST https://glhn-thi.<tên-tài-khoản>.workers.dev/api/admin/import -H "Authorization: Bearer <ADMIN_TOKEN>"
+   curl -X POST https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import -H "Authorization: Bearer <ADMIN_TOKEN>"
    ```
    Kết quả đúng có dạng `{"cau_hoi":74,"phan_thi":5,"hoc_vien":39,"thoi_luong_phut":90,"canh_bao":[]}`. Nếu `canh_bao` có nội dung (thiếu câu, nhóm không có trong `PhanThi`…), hãy sửa Sheet rồi import lại. Import chạy lại được nhiều lần.
 
@@ -117,7 +117,7 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
   DELETE FROM bai_lam; DELETE FROM luot_thi;
   ```
   (chỉ dùng trước ngày thi; lệnh này xóa **toàn bộ** bài làm).
-- Xem log khi gặp lỗi: Worker → **Logs / Observability**, hoặc `npx wrangler tail glhn-thi`.
+- Xem log khi gặp lỗi: Worker → **Logs / Observability**, hoặc `npx wrangler tail glhn-exam`.
 - Tên miền riêng (tùy chọn): Worker → **Settings → Domains & Routes → Add → Custom domain** (tên miền phải nằm trong tài khoản Cloudflare).
 
 ### Cập nhật về sau
@@ -131,27 +131,27 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
 
 Tạo Worker thứ hai từ cùng repo: **Create application → Import a repository →** repo `glhn-exam`, đặt:
 
-| Mục | Giá trị |
-|---|---|
-| Project / Worker name | `glhn-thi-cron` (trùng `name` trong `cron/wrangler.jsonc`) |
-| Build command | để trống |
-| Deploy command | `npx wrangler deploy -c cron/wrangler.jsonc` |
+| Mục                   | Giá trị                                                     |
+| --------------------- | ----------------------------------------------------------- |
+| Project / Worker name | `glhn-exam-cron` (trùng `name` trong `cron/wrangler.jsonc`) |
+| Build command         | để trống                                                    |
+| Deploy command        | `npx wrangler deploy -c cron/wrangler.jsonc`                |
 
 Rồi thêm 3 secrets `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY`, `SHEET_ID` cho Worker này (Settings → Variables and Secrets). Worker chạy mỗi 10 phút.
 
 ### Xử lý sự cố
 
-| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
-|---|---|---|
-| Build lỗi, nhắc tên Worker không khớp | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc` | Đổi tên cho trùng |
-| Build xong nhưng deploy lỗi về D1 | `database_id` sai hoặc chưa phải D1 của tài khoản này | Sửa ở Bước 1, push lại |
-| Trang báo lỗi 500, log có `no such table` | Chưa chạy migration | Bước 3 |
-| Trang báo lỗi 500, log có `Chưa có cấu hình` | Chưa chạy `0002_cau_hinh_mac_dinh.sql` | Bước 3 |
-| `/api/admin/…` trả 401 | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …` | Bước 4 |
-| Import trả 400 "Không tìm thấy tab …" | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …) | Sửa tên tab |
-| Import trả 500, log có `Sheets … 403` | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID` | Chia sẻ lại, kiểm tra secrets |
-| Gõ tên không ra gợi ý | Chưa import tab `HocVien` | Bước 5 |
-| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi | Phần cần nhiều câu hơn ngân hàng có | Xem `canh_bao` của import, bổ sung câu |
+| Triệu chứng                                  | Nguyên nhân thường gặp                                                               | Cách xử lý                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
+| Build lỗi, nhắc tên Worker không khớp        | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc`                         | Đổi tên cho trùng                      |
+| Build xong nhưng deploy lỗi về D1            | `database_id` sai hoặc chưa phải D1 của tài khoản này                                | Sửa ở Bước 1, push lại                 |
+| Trang báo lỗi 500, log có `no such table`    | Chưa chạy migration                                                                  | Bước 3                                 |
+| Trang báo lỗi 500, log có `Chưa có cấu hình` | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                               | Bước 3                                 |
+| `/api/admin/…` trả 401                       | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …` | Bước 4                                 |
+| Import trả 400 "Không tìm thấy tab …"        | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                 | Sửa tên tab                            |
+| Import trả 500, log có `Sheets … 403`        | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                    | Chia sẻ lại, kiểm tra secrets          |
+| Gõ tên không ra gợi ý                        | Chưa import tab `HocVien`                                                            | Bước 5                                 |
+| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi | Phần cần nhiều câu hơn ngân hàng có                                                  | Xem `canh_bao` của import, bổ sung câu |
 
 ### Cách khác: dùng dòng lệnh thay cho Git
 
