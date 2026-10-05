@@ -110,10 +110,6 @@ export async function themHang(env: SheetEnv, tab: string, values: unknown[][]):
 	return Number(m[1]);
 }
 
-export async function capNhatNhieuVung(env: SheetEnv, data: { range: string; values: unknown[][] }[]) {
-	await api(env, 'POST', '/values:batchUpdate', { valueInputOption: 'USER_ENTERED', data });
-}
-
 type LuotSync = {
 	id: string;
 	ten_thanh: string;
@@ -200,7 +196,7 @@ export async function dongBoLai(db: D1Database, env: Partial<SheetEnv>, now = Da
 			xong.push([l.id, row]);
 		} else them.push(l);
 	}
-	if (capNhat.length) await capNhatNhieuVung(env, capNhat);
+	if (capNhat.length) await api(env, 'POST', '/values:batchUpdate', { valueInputOption: 'USER_ENTERED', data: capNhat });
 	if (them.length) {
 		const dau = await themHang(env, TAB_KET_QUA, them.map(hangKetQua));
 		them.forEach((l, i) => xong.push([l.id, dau + i]));

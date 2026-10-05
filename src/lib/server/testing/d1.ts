@@ -35,7 +35,6 @@ export function d1Test(): D1Database {
 				db.exec('ROLLBACK');
 				throw e;
 			}
-		},
-		exec: async (sql: string) => db.exec(sql)
+		}
 	} as unknown as D1Database;
 }

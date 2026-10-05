@@ -66,7 +66,6 @@ CREATE TABLE luot_thi (
 );
 CREATE INDEX idx_luot_thi_giao_xu ON luot_thi (giao_xu_chuan_hoa);
 CREATE INDEX idx_luot_thi_giao_phan ON luot_thi (giao_phan_chuan_hoa);
-CREATE INDEX idx_luot_thi_sync ON luot_thi (sync_pending) WHERE sync_pending = 1;
 
 CREATE TABLE bai_lam (
 	luot_id TEXT PRIMARY KEY REFERENCES luot_thi (id),

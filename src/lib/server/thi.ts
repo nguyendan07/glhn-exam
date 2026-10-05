@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe } from './exam';
 import { chuanHoa, GIOI_HAN, hienThiNgay, khoaDinhDanh, kiemTraThongTin, lamSachVanBan } from './normalize';
 
@@ -23,10 +22,7 @@ export async function docJson(request: Request): Promise<unknown> {
 	}
 }
 
-export function taoToken(): string {
-	const b = crypto.getRandomValues(new Uint8Array(32));
-	return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+export const taoToken = () => crypto.randomUUID();
 
 export async function sha256Hex(s: string): Promise<string> {
 	const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -109,7 +105,7 @@ export async function batDau(
 	now = Date.now()
 ): Promise<KetQuaStart> {
 	const v = kiemTraThongTin(body);
-	if (!v.ok) return { res: json({ error: v.error }, { status: 400 }) };
+	if (!v.ok) return { res: Response.json({ error: v.error }, { status: 400 }) };
 	const t = v.data;
 	const hoTenCH = chuanHoa(t.ho_ten);
 	const khoa = khoaDinhDanh(t.ho_ten, t.ngay_sinh);
@@ -121,11 +117,12 @@ export async function batDau(
 			.first();
 		if (!ok)
 			return {
-				res: json({ error: 'Không tìm thấy bạn trong danh sách dự thi. Kiểm tra lại họ tên và ngày sinh.' }, { status: 403 })
+				res: Response.json({ error: 'Không tìm thấy bạn trong danh sách dự thi. Kiểm tra lại họ tên và ngày sinh.' }, { status: 403 })
 			};
 	}
 
-	const cu = await db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE khoa_dinh_danh = ?').bind(khoa).first<CuRow>();
+	const timTheoKhoa = () => db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE khoa_dinh_danh = ?').bind(khoa).first<CuRow>();
+	const cu = await timTheoKhoa();
 	if (cu) return tiepTuc(db, cu, token);
 
 	const cfg = await docCauHinh(db);
@@ -149,16 +146,16 @@ export async function batDau(
 		db.prepare('INSERT INTO bai_lam (luot_id) SELECT id FROM luot_thi WHERE id = ?').bind(id)
 	]);
 	if (ins.meta.changes === 0) {
-		const r = await db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE khoa_dinh_danh = ?').bind(khoa).first<CuRow>();
+		const r = await timTheoKhoa();
 		return tiepTuc(db, r!, token);
 	}
-	return { res: json({ trang_thai: 'dang_thi' }), token: moi };
+	return { res: Response.json({ trang_thai: 'dang_thi' }), token: moi };
 }
 
 type CuRow = { id: string; token_hash: string | null; trang_thai: string };
 
 async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined): Promise<KetQuaStart> {
-	if (token && (await sha256Hex(token)) === cu.token_hash) return { res: json({ trang_thai: cu.trang_thai }) };
+	if (token && (await sha256Hex(token)) === cu.token_hash) return { res: Response.json({ trang_thai: cu.trang_thai }) };
 	// token_hash NULL: giám thị đã mở khóa để học viên vào lại từ thiết bị khác.
 	if (cu.token_hash === null) {
 		const moi = taoToken();
@@ -166,13 +163,13 @@ async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined): Pr
 			.prepare('UPDATE luot_thi SET token_hash = ? WHERE id = ? AND token_hash IS NULL')
 			.bind(await sha256Hex(moi), cu.id)
 			.run();
-		if (r.meta.changes === 1) return { res: json({ trang_thai: cu.trang_thai }), token: moi };
+		if (r.meta.changes === 1) return { res: Response.json({ trang_thai: cu.trang_thai }), token: moi };
 	}
 	const error =
 		cu.trang_thai === 'da_nop'
 			? 'Bạn đã thi rồi. Mỗi học viên chỉ được thi một lần.'
 			: 'Lượt thi của bạn đang mở trên một thiết bị khác. Vui lòng liên hệ giám thị.';
-	return { res: json({ error }, { status: 409 }) };
+	return { res: Response.json({ error }, { status: 409 }) };
 }
 
 type BaiLam = { dap_an_tn: Record<string, number>; tu_luan: Record<string, string>; so_lan_roi_tab: number };
@@ -231,13 +228,13 @@ export async function trangThaiThi(db: D1Database, l: Luot, now = Date.now()) {
 /** PUT /api/save: lưu toàn bộ đáp án hiện tại (ghi đè), chỉ khi còn trong hạn. */
 export async function luuBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now()) {
 	const l = await timLuotTheoToken(db, token);
-	if (!l) return json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 });
-	if (l.trang_thai === 'da_nop') return json({ error: 'Bài đã nộp.', da_nop: true }, { status: 409 });
+	if (!l) return Response.json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 });
+	if (l.trang_thai === 'da_nop') return Response.json({ error: 'Bài đã nộp.', da_nop: true }, { status: 409 });
 	const cfg = await docCauHinh(db);
 	const t = thoiGian(l.started_at, now, cfg.thoiLuong, cfg.dungSai);
-	if (t.tre) return json({ error: 'Đã hết giờ làm bài.', het_gio: true }, { status: 409 });
+	if (t.tre) return Response.json({ error: 'Đã hết giờ làm bài.', het_gio: true }, { status: 409 });
 	const b = kiemTraBaiLam(body, JSON.parse(l.de_thi));
-	if (typeof b === 'string') return json({ error: b }, { status: 400 });
+	if (typeof b === 'string') return Response.json({ error: b }, { status: 400 });
 	await db.batch([
 		db
 			.prepare(
@@ -249,7 +246,7 @@ export async function luuBai(db: D1Database, token: string | undefined, body: un
 			.prepare(`UPDATE luot_thi SET so_lan_roi_tab = MAX(so_lan_roi_tab, ?) WHERE id = ? AND trang_thai = 'dang_thi'`)
 			.bind(b.so_lan_roi_tab, l.id)
 	]);
-	return json({ ok: true, con_lai_ms: t.conLaiMs, nop_duoc_sau_ms: t.nopDuocSauMs });
+	return Response.json({ ok: true, con_lai_ms: t.conLaiMs, nop_duoc_sau_ms: t.nopDuocSauMs });
 }
 
 /**
@@ -258,14 +255,14 @@ export async function luuBai(db: D1Database, token: string | undefined, body: un
  */
 export async function nopBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now()) {
 	const l = await timLuotTheoToken(db, token);
-	if (!l) return { res: json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 }) };
-	if (l.trang_thai === 'da_nop') return { res: json(await ketQua(db, l)) };
+	if (!l) return { res: Response.json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 }) };
+	if (l.trang_thai === 'da_nop') return { res: Response.json(await ketQua(db, l)) };
 
 	const cfg = await docCauHinh(db);
 	const t = thoiGian(l.started_at, now, cfg.thoiLuong, cfg.dungSai);
 	if (!t.duocNop)
 		return {
-			res: json(
+			res: Response.json(
 				{ error: 'Chưa được nộp bài trước khi hết một nửa thời gian.', nop_duoc_sau_ms: t.nopDuocSauMs },
 				{ status: 409 }
 			)
@@ -275,7 +272,7 @@ export async function nopBai(db: D1Database, token: string | undefined, body: un
 	let bai: BaiLam = { dap_an_tn: JSON.parse(l.dap_an_tn), tu_luan: JSON.parse(l.tu_luan), so_lan_roi_tab: 0 };
 	if (body !== undefined) {
 		const b = kiemTraBaiLam(body, de);
-		if (typeof b === 'string') return { res: json({ error: b }, { status: 400 }) };
+		if (typeof b === 'string') return { res: Response.json({ error: b }, { status: 400 }) };
 		if (!t.tre) bai = b;
 		else bai.so_lan_roi_tab = b.so_lan_roi_tab;
 	}
@@ -299,7 +296,7 @@ export async function nopBai(db: D1Database, token: string | undefined, body: un
 	]);
 	const moiNop = upd.meta.changes === 1;
 	const sau = (await timLuotTheoToken(db, token))!;
-	return { res: json(await ketQua(db, sau)), moiNop, luotId: l.id };
+	return { res: Response.json(await ketQua(db, sau)), moiNop, luotId: l.id };
 }
 
 /** Kết quả hiển thị cho học viên. */
