@@ -5,7 +5,7 @@ Web thi trắc nghiệm + tự luận cho khoảng 100–300 học viên thi cù
 ## Cấu trúc
 
 ```
-migrations/              Schema D1 + dữ liệu mẫu
+migrations/              Schema D1 + cấu hình mặc định (không có dữ liệu mẫu)
 src/lib/server/
   normalize.ts           Chuẩn hóa chuỗi (bỏ dấu, chữ thường, gộp khoảng trắng)
   exam.ts                Random đề (crypto.getRandomValues), chấm TN, luật thời gian
@@ -29,8 +29,9 @@ cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 ```bash
 npm install
 cp .dev.vars.example .dev.vars        # sửa giá trị nếu muốn thử đồng bộ Sheets
-npm run db:migrate                    # tạo D1 local (.wrangler/) + dữ liệu mẫu
-npm run db:hoc-vien                   # (tùy chọn) thay học viên mẫu bằng resources/ds_hoc_vien.csv
+npm run db:migrate                    # tạo D1 local (.wrangler/), bảng còn trống
+npm run db:mau                        # nạp dữ liệu MẪU để chạy thử (30 phút, vài câu hỏi, 5 học viên giả)
+npm run db:hoc-vien                   # (tùy chọn) nạp danh sách học viên thật từ resources/ds_hoc_vien.csv
 npm run dev                           # http://localhost:5173
 npm test                              # Vitest
 ```
@@ -47,24 +48,121 @@ Muốn thử nhanh luật thời gian khi chạy local, rút ngắn đề còn 6
 npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_giay=60, dung_sai_giay=10"
 ```
 
-## Triển khai lên Cloudflare
+## Triển khai lên Cloudflare (giao diện Workers & Pages)
 
-1. **Tạo D1** rồi chép `database_id` vào `wrangler.jsonc` (và `cron/wrangler.jsonc` nếu dùng cron):
+Hướng dẫn cho trường hợp đã đẩy code lên GitHub (`nguyendan07/glhn-exam`) và đã kết nối Cloudflare với GitHub. Mỗi lần `git push` lên nhánh `main`, Cloudflare tự build và deploy (tính năng **Workers Builds**). Tên mục trên giao diện Cloudflare có thể thay đổi đôi chút theo thời gian.
+
+> **Thứ tự quan trọng:** D1 và `database_id` đúng → tạo Worker từ GitHub → migration → secrets → import dữ liệu → kiểm tra. Làm sai thứ tự thường gây lỗi ở lần build đầu.
+
+### Bước 1. Kiểm tra cấu hình trong repo
+
+- `wrangler.jsonc` có `"name": "glhn-thi"` và binding **`DB`** với `database_id` của D1 `glhn-thi` (đã điền sẵn: `7ce38b38-…`). Mã ứng dụng chỉ dùng binding tên `DB`, đừng đổi tên.
+- **Tên Worker trên dashboard phải trùng `name` trong `wrangler.jsonc`**, nếu không build sẽ thất bại.
+- Tạo D1 mới (hoặc đổi D1) thì: dashboard → **Storage & databases → D1 SQL database → Create database** (tên `glhn-thi`, nên chọn vùng gần nhất, ví dụ Asia-Pacific), chép **Database ID** vào `wrangler.jsonc` (và `cron/wrangler.jsonc` nếu dùng cron), commit và push.
+
+### Bước 2. Tạo Worker từ repo GitHub
+
+1. Vào **Workers & Pages → Create application → Import a repository** (hoặc *Connect to Git*), chọn tài khoản GitHub và repo `glhn-exam`.
+2. Điền:
+   | Mục | Giá trị |
+   |---|---|
+   | Project / Worker name | `glhn-thi` (đúng bằng `name` trong `wrangler.jsonc`) |
+   | Production branch | `main` |
+   | Root directory | để trống (thư mục gốc) |
+   | Build command | `npm run build` |
+   | Deploy command | `npx wrangler deploy` (mặc định) |
+3. Bấm **Save and Deploy**. Môi trường build dùng Node 24 mặc định, phù hợp với dự án; không cần đặt `NODE_VERSION`.
+
+Lần build đầu có thể báo lỗi ở bước deploy nếu `database_id` sai; sửa ở Bước 1 rồi bấm **Retry build** (Worker → **Deployments/Builds**).
+
+### Bước 3. Chạy migration trên D1 (làm một lần)
+
+Hai file `migrations/0001_init.sql` (bảng) và `0002_cau_hinh_mac_dinh.sql` (cấu hình mặc định 90 phút). Thiếu một trong hai, trang sẽ báo lỗi.
+
+- **Cách A, từ máy tính (khuyên dùng):** đăng nhập một lần rồi chạy
+  ```bash
+  npx wrangler login
+  npm run db:migrate:remote
+  ```
+  Wrangler ghi nhớ file nào đã chạy, nên chạy lại hoặc thêm migration mới về sau đều an toàn.
+- **Cách B, trên dashboard:** D1 → `glhn-thi` → tab **Console** → dán lần lượt nội dung hai file trên rồi **Execute**. Cách này không ghi vào bảng theo dõi migration của Wrangler; nếu về sau chạy cách A, Wrangler sẽ chạy lại `0001` và báo "table already exists". Hãy chọn một cách và dùng nhất quán.
+
+### Bước 4. Đặt secrets (biến bí mật lúc chạy)
+
+Worker `glhn-thi` → **Settings → Variables and Secrets → Add**, kiểu **Secret**:
+
+| Tên | Giá trị |
+|---|---|
+| `GOOGLE_SA_EMAIL` | `client_email` trong file JSON của service account |
+| `GOOGLE_SA_PRIVATE_KEY` | `private_key` trong file JSON, dán nguyên (cả `-----BEGIN …` và các `\n`) |
+| `SHEET_ID` | phần giữa `/d/` và `/edit` trong URL Google Sheet |
+| `ADMIN_TOKEN` | chuỗi ngẫu nhiên từ 16 ký tự trở lên, ví dụ chạy `openssl rand -hex 24` |
+
+Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Variables and secrets** là biến chỉ dùng *lúc build* và **không** truy cập được khi chạy, đừng đặt secrets ở đó.
+
+### Bước 5. Nạp đề thi và danh sách học viên
+
+1. Tạo file Sheet (xem [Tạo nhanh file Sheet từ các file CSV](#tạo-nhanh-file-sheet-từ-các-file-csv)), tải lên Google Sheets và chia sẻ cho email service account (quyền *Người chỉnh sửa*).
+2. Gọi import (thay địa chỉ bằng URL của Worker, xem ở trang Worker hoặc **Settings → Domains & Routes**):
    ```bash
-   npx wrangler d1 create glhn-thi
+   curl -X POST https://glhn-thi.<tên-tài-khoản>.workers.dev/api/admin/import -H "Authorization: Bearer <ADMIN_TOKEN>"
    ```
-2. **Chạy migration**: `npm run db:migrate:remote`. File `0002_du_lieu_mau.sql` có dữ liệu mẫu. Thi thật thì sửa file này, hoặc dùng import từ Sheet (xem bên dưới).
-3. **Đặt secrets**:
-   ```bash
-   npx wrangler secret put GOOGLE_SA_EMAIL
-   npx wrangler secret put GOOGLE_SA_PRIVATE_KEY   # dán nguyên private_key trong file JSON (có \n cũng được)
-   npx wrangler secret put SHEET_ID                # phần giữa /d/ và /edit trong URL của Sheet
-   npx wrangler secret put ADMIN_TOKEN             # chuỗi ngẫu nhiên ≥ 16 ký tự, ví dụ: openssl rand -hex 24
-   ```
-4. **Danh sách học viên**: chỉ người có tên trong danh sách mới thi được. Có hai cách nạp (đều chạy lại được nhiều lần, giữ nguyên người đã thi):
-   - Từ file CSV (cột đầu là "Tên Thánh + Họ tên" gộp một ô, dòng đầu là tiêu đề, các cột sau bỏ qua): đặt file ở thư mục gốc với tên `ds_hoc_vien.csv` rồi chạy `npm run db:hoc-vien:remote`. Lệnh này cũng xóa 5 học viên mẫu của migration. File CSV đã nằm trong `.gitignore` để không đưa tên người vào git.
-   - Từ tab `HocVien` trong Google Sheet bằng `POST /api/admin/import` (xem bên dưới).
-5. **Deploy**: `npm run deploy`.
+   Kết quả đúng có dạng `{"cau_hoi":74,"phan_thi":5,"hoc_vien":39,"thoi_luong_phut":90,"canh_bao":[]}`. Nếu `canh_bao` có nội dung (thiếu câu, nhóm không có trong `PhanThi`…), hãy sửa Sheet rồi import lại. Import chạy lại được nhiều lần.
+
+### Bước 6. Kiểm tra trước ngày thi
+
+- Mở URL: trang chào hiện đúng tiêu đề, giáo xứ, thời gian, lưu ý; gõ thử một tên thấy gợi ý.
+- Thi thử một lượt bằng một học viên rồi **xóa lượt thử** để học viên đó thi thật được: D1 → Console:
+  ```sql
+  DELETE FROM bai_lam; DELETE FROM luot_thi;
+  ```
+  (chỉ dùng trước ngày thi; lệnh này xóa **toàn bộ** bài làm).
+- Xem log khi gặp lỗi: Worker → **Logs / Observability**, hoặc `npx wrangler tail glhn-thi`.
+- Tên miền riêng (tùy chọn): Worker → **Settings → Domains & Routes → Add → Custom domain** (tên miền phải nằm trong tài khoản Cloudflare).
+
+### Cập nhật về sau
+
+- Sửa code: `git push` lên `main`, Cloudflare tự build và deploy. Xem tiến trình và log ở Worker → **Deployments / Builds**; hỏng bản mới thì chọn bản cũ → **Rollback**.
+- Đổi schema: thêm file migration **mới** (`0003_….sql`, không sửa file đã chạy), chạy `npm run db:migrate:remote` **trước** khi push.
+- Đổi đề, học viên, tiêu đề, thời gian làm bài: sửa Google Sheet rồi gọi lại `/api/admin/import` (bị từ chối nếu đang có lượt thi chưa nộp, thêm `?force=1` nếu chắc chắn).
+- **Bản xem trước (preview) dùng chung D1 và secrets với bản thật.** Build của nhánh khác `main` tạo URL xem trước nhưng vẫn ghi vào D1 thật. Nên tắt: Worker → **Settings → Build → Branch control**, bỏ build cho các nhánh không phải production (hoặc chỉ push thẳng `main`).
+
+### Cron tự động gửi lại bài chưa lên Sheet (tùy chọn)
+
+Tạo Worker thứ hai từ cùng repo: **Create application → Import a repository →** repo `glhn-exam`, đặt:
+
+| Mục | Giá trị |
+|---|---|
+| Project / Worker name | `glhn-thi-cron` (trùng `name` trong `cron/wrangler.jsonc`) |
+| Build command | để trống |
+| Deploy command | `npx wrangler deploy -c cron/wrangler.jsonc` |
+
+Rồi thêm 3 secrets `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY`, `SHEET_ID` cho Worker này (Settings → Variables and Secrets). Worker chạy mỗi 10 phút.
+
+### Xử lý sự cố
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| Build lỗi, nhắc tên Worker không khớp | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc` | Đổi tên cho trùng |
+| Build xong nhưng deploy lỗi về D1 | `database_id` sai hoặc chưa phải D1 của tài khoản này | Sửa ở Bước 1, push lại |
+| Trang báo lỗi 500, log có `no such table` | Chưa chạy migration | Bước 3 |
+| Trang báo lỗi 500, log có `Chưa có cấu hình` | Chưa chạy `0002_cau_hinh_mac_dinh.sql` | Bước 3 |
+| `/api/admin/…` trả 401 | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …` | Bước 4 |
+| Import trả 400 "Không tìm thấy tab …" | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …) | Sửa tên tab |
+| Import trả 500, log có `Sheets … 403` | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID` | Chia sẻ lại, kiểm tra secrets |
+| Gõ tên không ra gợi ý | Chưa import tab `HocVien` | Bước 5 |
+| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi | Phần cần nhiều câu hơn ngân hàng có | Xem `canh_bao` của import, bổ sung câu |
+
+### Cách khác: dùng dòng lệnh thay cho Git
+
+```bash
+npx wrangler login
+npm run db:migrate:remote
+npx wrangler secret put ADMIN_TOKEN      # lặp lại cho 3 secret còn lại
+npm run deploy                           # build + wrangler deploy
+```
+
+Nạp danh sách học viên trực tiếp từ CSV (không cần Sheet): đặt file ở `resources/ds_hoc_vien.csv` rồi `npm run db:hoc-vien:remote` (file nằm trong `.gitignore` để không đưa tên người vào git).
 
 ### Cấu hình đề thi
 
@@ -80,7 +178,7 @@ npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_gia
 
 Tổng 100 điểm: 72 điểm trắc nghiệm hệ thống tự chấm, 28 điểm (phần IV và V) giáo viên chấm trên Sheet. Phần V luôn đủ 4 câu **theo đúng thứ tự** (Câu 1 → 4, tắt xáo); các phần còn lại xáo thứ tự câu, và câu trắc nghiệm còn xáo cả thứ tự đáp án.
 
-Dữ liệu mẫu trong migration có đủ 5 phần và 4 câu thật của phần V, nhưng chỉ có vài câu mẫu cho phần I–IV nên số câu mỗi phần đang đặt nhỏ (3 / 3 / 2 / 2 / 4). **Số câu thật (30 / 30 / 6 / 4 / 4) và tiêu đề phần được đặt bằng tab `PhanThi` khi import** (xem bên dưới). Nếu phần nào yêu cầu nhiều câu hơn ngân hàng có, import sẽ cảnh báo và học viên sẽ không vào thi được cho đến khi bổ sung.
+Migration chỉ tạo bảng rỗng và cấu hình mặc định. **Số câu (30 / 30 / 6 / 4 / 4), tiêu đề phần, câu hỏi và học viên được đặt bằng tab `PhanThi`, `CauHoi`, `HocVien` khi import** (xem bên dưới); `npm run db:mau` chỉ nạp dữ liệu mẫu cho máy local. Nếu phần nào yêu cầu nhiều câu hơn ngân hàng có, import sẽ cảnh báo và học viên sẽ không vào thi được cho đến khi bổ sung.
 
 Thời lượng làm bài đổi trực tiếp trong D1 (bỏ `--remote` để chạy trên local):
 

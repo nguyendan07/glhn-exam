@@ -7,6 +7,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 export function d1Test(): D1Database {
 	const db = new DatabaseSync(':memory:');
 	for (const f of readdirSync('migrations').sort()) db.exec(readFileSync(`migrations/${f}`, 'utf8'));
+	db.exec(readFileSync('src/lib/server/testing/mau.sql', 'utf8'));
 
 	const exec = (sql: string, params: SQLInputValue[]) => {
 		const st = db.prepare(sql);
