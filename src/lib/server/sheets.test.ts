@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nhapTuSheet, parseCauHoi, parsePhanThi } from './admin';
+import { nhapTuSheet, parseCauHoi, parsePhanThi, parseThongTin } from './admin';
 import { parseHocVien } from './hoc-vien';
 import { dongBoLai, escapeCell, fetchRetry, hangKetQua } from './sheets';
 import { d1Test } from './testing/d1';
-import { batDau, nopBai } from './thi';
+import { batDau, nopBai, thongTinTrangChao } from './thi';
 
 describe('chống formula injection', () => {
 	it('thêm dấu nháy cho = + - @', () => {
@@ -137,6 +137,23 @@ describe('import', () => {
 		]);
 	});
 
+	it('parse tab ThongTin: nhiều dòng to_chuc/luu_y, thời lượng, báo lỗi theo dòng', () => {
+		const r = parseThongTin([
+			['to_chuc', 'GIÁO PHẬN THÁI BÌNH'], ['to_chuc', 'GIÁO XỨ TRINH VƯƠNG'], ['tieu_de', 'ĐỀ THI – 2026'],
+			['thoi_luong_phut', '90'], ['luu_y', 'Một'], ['luu_y', 'Hai'], [],
+			['abc', 'x'], ['luu_y', ''], ['thoi_luong_phut', '0']
+		]);
+		expect(r.ds.map((x) => x.khoa)).toEqual(['to_chuc', 'to_chuc', 'tieu_de', 'luu_y', 'luu_y']);
+		expect(r.thoiLuongPhut).toBe(90);
+		expect(r.loi).toEqual([
+			'ThongTin dòng 9: Khóa "abc" không hợp lệ (to_chuc, tieu_de, luu_y, thoi_luong_phut).',
+			'ThongTin dòng 10: thiếu Nội dung.',
+			'ThongTin dòng 11: thoi_luong_phut phải là số phút từ 1 đến 600.'
+		]);
+		expect(parseThongTin([['luu_y', 'chỉ có lưu ý']]).loi).toEqual(['ThongTin: thiếu dòng tieu_de.']);
+		expect(parseThongTin([])).toEqual({ ds: [], thoiLuongPhut: null, loi: [] });
+	});
+
 	it('parse học viên: tên Thánh có thể trống, đánh số các dòng trùng, báo lỗi theo dòng', () => {
 		const r = parseHocVien([
 			['Phêrô', 'Nguyễn Văn An', 'Tân Định', 'Sài Gòn'],
@@ -155,6 +172,7 @@ describe('import', () => {
 		gaFetch((url) => {
 			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'kinh_thanh', 'Hỏi', 'A', '2', 'Đúng', 'Sai'], ['Z1', 'TL', 'khac', 'Nhóm chưa khai báo']] };
 			if (url.includes('PhanThi!')) return { values: phanThi };
+			if (url.includes('ThongTin!')) return { values: [['to_chuc', 'GIÁO PHẬN THÁI BÌNH'], ['tieu_de', 'ĐỀ THI GIÁO LÝ HÔN NHÂN – 2026'], ['thoi_luong_phut', '90'], ['luu_y', 'Không gian lận'], ['luu_y', 'Hãy thành thật']] };
 			if (url.includes('HocVien!')) return { values: hocVien };
 		});
 
@@ -164,7 +182,11 @@ describe('import', () => {
 		const env = await moiEnv();
 		const r = await nhapTuSheet(db, env, false);
 		expect(r.status).toBe(200);
-		expect(r.body).toMatchObject({ cau_hoi: 2, phan_thi: 2, hoc_vien: 2 });
+		expect(r.body).toMatchObject({ cau_hoi: 2, phan_thi: 2, hoc_vien: 2, thoi_luong_phut: 90 });
+		expect(await thongTinTrangChao(db)).toEqual({
+			to_chuc: ['GIÁO PHẬN THÁI BÌNH'], tieu_de: 'ĐỀ THI GIÁO LÝ HÔN NHÂN – 2026', luu_y: ['Không gian lận', 'Hãy thành thật'], thoi_luong_phut: 90
+		});
+		expect(await db.prepare('SELECT thoi_luong_giay FROM cau_hinh').first()).toEqual({ thoi_luong_giay: 5400 });
 		expect((r.body as any).canh_bao).toEqual(['Nhóm "khac" có 1 câu nhưng không nằm trong tab PhanThi nên sẽ không bao giờ được bốc.']);
 		expect(await db.prepare('SELECT * FROM cau_hoi').all().then((x) => x.results)).toEqual([
 			{ ma: 'N1', loai: 'TN', nhom: 'kinh_thanh', noi_dung: 'Hỏi', lua_chon: '["Đúng","Sai"]', dap_an: 0, diem: 2 },
@@ -193,6 +215,20 @@ describe('import', () => {
 
 		await batDau(db, { hoc_vien_id: an.id }, undefined);
 		expect((await nhapTuSheet(db, env, false)).status).toBe(409);
+	});
+
+	it('thiếu tab ThongTin: vẫn import được, chỉ cảnh báo và giữ nguyên thời gian', async () => {
+		gaFetch((url) => {
+			if (url.includes('CauHoi!')) return { values: [['N1', 'TN', 'g', 'Hỏi', 'A', '', 'x', 'y']] };
+			if (url.includes('PhanThi!')) return { values: [['g', 'Phần', '1']] };
+			if (url.includes('HocVien!')) return { values: [['', 'Nguyễn Văn An']] };
+			if (url.includes('ThongTin!')) return new Response('{"error":{"message":"Unable to parse range: ThongTin!A2:B"}}', { status: 400 });
+		});
+		const db = d1Test();
+		const r = await nhapTuSheet(db, await moiEnv(), false);
+		expect(r.status).toBe(200);
+		expect((r.body as any).canh_bao).toContain('Chưa có tab ThongTin: trang chào dùng nội dung mặc định, thời gian làm bài giữ nguyên.');
+		expect(await thongTinTrangChao(db)).toMatchObject({ to_chuc: [], tieu_de: null, luu_y: [], thoi_luong_phut: 30 });
 	});
 
 	it('cảnh báo khi phần cần nhiều câu hơn ngân hàng có', async () => {

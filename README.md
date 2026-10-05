@@ -20,6 +20,7 @@ src/routes/
   ket-qua/               Trang kết quả
   api/tim-kiem|start|save|submit|admin/import|admin/resync
 scripts/hoc-vien-sql.mjs  CSV danh sách học viên → SQL (npm run db:hoc-vien)
+scripts/tao-sheet-de-thi.py  CSV đề thi + danh sách học viên → file Excel upload lên Google Sheets
 cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 ```
 
@@ -29,7 +30,7 @@ cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 npm install
 cp .dev.vars.example .dev.vars        # sửa giá trị nếu muốn thử đồng bộ Sheets
 npm run db:migrate                    # tạo D1 local (.wrangler/) + dữ liệu mẫu
-npm run db:hoc-vien                   # (tùy chọn) thay học viên mẫu bằng ds_hoc_vien.csv
+npm run db:hoc-vien                   # (tùy chọn) thay học viên mẫu bằng resources/ds_hoc_vien.csv
 npm run dev                           # http://localhost:5173
 npm test                              # Vitest
 ```
@@ -102,6 +103,19 @@ Không commit file JSON hay `.dev.vars`. `.gitignore` đã loại trừ `.dev.va
 
 ### Các tab trong Sheet
 
+### Tạo nhanh file Sheet từ các file CSV
+
+Nếu có đề thi dạng CSV (`resources/phanthi/phan1..5.csv`, `resources/info.csv`, `resources/ds_hoc_vien.csv`), tạo sẵn cả 5 tab bằng một lệnh:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install openpyxl     # lần đầu
+.venv/bin/python scripts/tao-sheet-de-thi.py                # → resources/de-thi-2026.xlsx
+```
+
+Script tự kiểm tra: mỗi câu trắc nghiệm đủ 4 lựa chọn và đáp án A–D, số câu mỗi phần khớp `info.csv`, tổng đúng 100 điểm (điểm mỗi câu = điểm phần ÷ số câu; Phần V lấy điểm ghi trong câu). Rồi lên Google Sheets: **Tệp → Nhập → Tải lên →** chọn file → *Thay thế bảng tính* (hoặc *Chèn trang tính mới* nếu Sheet đã có tab `KetQua`). Chia sẻ Sheet cho service account, rồi gọi `/api/admin/import`.
+
+File `.xlsx` chứa đáp án và tên học viên: không đưa vào git.
+
 Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab phải đúng như sau:
 
 **`CauHoi`** (bắt buộc khi import). Thứ tự dòng chỉ quan trọng với phần tắt xáo (phần V): các câu được lấy theo thứ tự trong tab.
@@ -129,6 +143,8 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 
 Trên trang làm bài, mỗi câu hiển thị tiêu đề phần, hướng dẫn và "(số câu – số điểm)" của phần (tính từ các câu thực sự bốc), cùng điểm của câu.
 
+**`ThongTin`** (tùy chọn): nội dung trang chào và thời gian làm bài. Cột A: Khóa | B: Nội dung. Khóa `to_chuc` (các dòng đầu trang, ví dụ tên giáo phận, giáo xứ), `tieu_de` (một dòng), `thoi_luong_phut` (một dòng; đặt thời gian làm bài và hiển thị "(thời gian làm bài N phút)"), `luu_y` (mỗi dòng một ý trong khung "Lưu ý"). Không có tab này thì trang chào dùng chữ mặc định và thời gian giữ nguyên.
+
 **`HocVien`** (bắt buộc khi import; không cần nếu chỉ nạp bằng CSV): A: Tên Thánh (**có thể để trống** nếu chưa có) | B: Họ và tên | C: Giáo xứ | D: Giáo phận (hai cột cuối tùy chọn, chỉ để hiển thị và giúp phân biệt người trùng tên).
 
 **`KetQua`** (bắt buộc có tab, có thể để trống): app ghi kết quả vào đây. Lần import đầu tiên sẽ tự ghi dòng tiêu đề nếu tab đang trống. Các cột theo thứ tự:
@@ -140,7 +156,7 @@ Mọi chuỗi do học viên nhập mà bắt đầu bằng `=`, `+`, `-`, `@` �
 ### Import và resync
 
 ```bash
-# Nạp CauHoi, PhanThi và HocVien từ Sheet vào D1
+# Nạp CauHoi, PhanThi, HocVien và ThongTin từ Sheet vào D1
 curl -X POST https://<app>/api/admin/import -H "Authorization: Bearer $ADMIN_TOKEN"
 # Đẩy lại các bài đã nộp nhưng chưa lên được Sheet (sync_pending = 1)
 curl -X POST https://<app>/api/admin/resync -H "Authorization: Bearer $ADMIN_TOKEN"

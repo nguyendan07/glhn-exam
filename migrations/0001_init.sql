@@ -30,6 +30,13 @@ CREATE TABLE cau_hinh (
 	dung_sai_giay INTEGER NOT NULL DEFAULT 60 CHECK (dung_sai_giay >= 0)
 );
 
+-- Nội dung trang chào, nạp từ tab ThongTin: khoa = to_chuc | tieu_de | luu_y (mỗi dòng một mục, giữ thứ tự id).
+CREATE TABLE thong_tin (
+	id INTEGER PRIMARY KEY,
+	khoa TEXT NOT NULL CHECK (khoa IN ('to_chuc', 'tieu_de', 'luu_y')),
+	noi_dung TEXT NOT NULL
+);
+
 -- Các phần của đề, theo thứ tự thu_tu. Mỗi phần bốc so_cau câu từ nhóm cùng tên (nhom).
 -- xao_tron = 0: lấy so_cau câu đầu của nhóm theo thứ tự trong ngân hàng, không xáo (dùng cho phần có câu cố định như tự luận).
 CREATE TABLE cau_hinh_nhom (

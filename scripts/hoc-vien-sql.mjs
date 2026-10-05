@@ -1,4 +1,4 @@
-// Dùng: node scripts/hoc-vien-sql.mjs ds_hoc_vien.csv > .wrangler/hoc-vien.sql
+// Dùng: node scripts/hoc-vien-sql.mjs resources/ds_hoc_vien.csv > .wrangler/hoc-vien.sql
 import { readFileSync } from 'node:fs';
 import { csvHocVien, parseHocVien, sqlHocVien } from '../src/lib/server/hoc-vien.ts';
 

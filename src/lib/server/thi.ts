@@ -93,6 +93,22 @@ async function docCauHoi(db: D1Database, mas: string[]): Promise<Map<string, Cau
 	return new Map(results.map((q) => [q.ma, q]));
 }
 
+/** Nội dung trang chào: lấy từ tab ThongTin (đã nạp vào D1). Rỗng thì trang dùng chữ mặc định. */
+export async function thongTinTrangChao(db: D1Database) {
+	const [tt, cfg] = await db.batch([
+		db.prepare('SELECT khoa, noi_dung FROM thong_tin ORDER BY id'),
+		db.prepare('SELECT thoi_luong_giay FROM cau_hinh WHERE id = 1')
+	]);
+	const dong = tt.results as { khoa: string; noi_dung: string }[];
+	const lay = (k: string) => dong.filter((d) => d.khoa === k).map((d) => d.noi_dung);
+	return {
+		to_chuc: lay('to_chuc'),
+		tieu_de: lay('tieu_de')[0] ?? null,
+		luu_y: lay('luu_y'),
+		thoi_luong_phut: Math.round(((cfg.results[0] as { thoi_luong_giay: number } | undefined)?.thoi_luong_giay ?? 0) / 60) || null
+	};
+}
+
 type KetQuaStart = { res: Response; token?: string };
 
 type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string };

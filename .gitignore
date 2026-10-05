@@ -31,3 +31,6 @@ worker-configuration.d.ts
 
 # Danh sách học viên thật (có tên người): không commit
 ds_hoc_vien.csv
+
+# Python venv dùng cho scripts/tao-sheet-de-thi.py
+.venv/

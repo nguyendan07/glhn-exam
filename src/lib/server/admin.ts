@@ -53,7 +53,7 @@ export function parseCauHoi(rows: string[][]) {
 }
 
 /**
- * Nạp tab CauHoi, PhanThi và HocVien từ Sheet vào D1. Câu hỏi được thay toàn bộ; học viên được cập nhật theo khóa (giữ nguyên id của
+ * Nạp tab CauHoi, PhanThi, HocVien và ThongTin (tùy chọn) từ Sheet vào D1. Câu hỏi được thay toàn bộ; học viên được cập nhật theo khóa (giữ nguyên id của
  * người đã có lượt thi), dòng nào bị xóa khỏi Sheet thì bị xóa khỏi D1 trừ khi đã có lượt thi.
  * Từ chối khi đang có lượt thi dở dang (trừ khi force) vì đề đã phát tham chiếu tới mã câu hỏi.
  */
@@ -75,19 +75,40 @@ export function parsePhanThi(rows: string[][]) {
 	return { ds, loi };
 }
 
+/** Tab ThongTin: A Khóa | B Nội dung. Khóa: to_chuc, tieu_de, luu_y (nhiều dòng) và thoi_luong_phut (một dòng, đặt thời gian làm bài). Tab trống là hợp lệ. */
+export function parseThongTin(rows: string[][]) {
+	const loi: string[] = [];
+	const ds: { khoa: string; noi_dung: string }[] = [];
+	let thoiLuongPhut: number | null = null;
+	rows.forEach((h, i) => {
+		const [khoa, nd] = [o(h, 0), o(h, 1)];
+		if (!khoa && !nd) return;
+		const dong = i + 2;
+		if (!nd) return loi.push(`ThongTin dòng ${dong}: thiếu Nội dung.`);
+		if (khoa === 'thoi_luong_phut') {
+			if (!/^\d+$/.test(nd) || +nd < 1 || +nd > 600) return loi.push(`ThongTin dòng ${dong}: thoi_luong_phut phải là số phút từ 1 đến 600.`);
+			thoiLuongPhut = +nd;
+		} else if (khoa === 'to_chuc' || khoa === 'tieu_de' || khoa === 'luu_y') ds.push({ khoa, noi_dung: nd });
+		else loi.push(`ThongTin dòng ${dong}: Khóa "${khoa}" không hợp lệ (to_chuc, tieu_de, luu_y, thoi_luong_phut).`);
+	});
+	if (ds.length && !ds.some((x) => x.khoa === 'tieu_de')) loi.push('ThongTin: thiếu dòng tieu_de.');
+	return { ds, thoiLuongPhut, loi };
+}
+
 export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean) {
 	if (!force) {
 		const dang = await db.prepare(`SELECT COUNT(*) n FROM luot_thi WHERE trang_thai = 'dang_thi'`).first<{ n: number }>();
 		if (dang && dang.n > 0) return { status: 409, body: { error: `Đang có ${dang.n} lượt thi chưa nộp. Thêm ?force=1 nếu chắc chắn.` } };
 	}
-	const [ch, pt, hv] = await Promise.all([docTab(env, 'CauHoi!A2:Z'), docTab(env, 'PhanThi!A2:E'), docTab(env, 'HocVien!A2:D')]);
+	const [ch, pt, hv, tt] = await Promise.all([docTab(env, 'CauHoi!A2:Z'), docTab(env, 'PhanThi!A2:E'), docTab(env, 'HocVien!A2:D'), docTab(env, 'ThongTin!A2:B')]);
 	if (!ch) return { status: 400, body: { error: 'Không tìm thấy tab CauHoi.' } };
 	if (!pt) return { status: 400, body: { error: 'Không tìm thấy tab PhanThi.' } };
 	if (!hv) return { status: 400, body: { error: 'Không tìm thấy tab HocVien.' } };
 	const cauHoi = parseCauHoi(ch);
 	const phanThi = parsePhanThi(pt);
 	const hocVien = parseHocVien(hv);
-	const loi = [...cauHoi.loi, ...phanThi.loi, ...hocVien.loi];
+	const thongTin = tt ? parseThongTin(tt) : null;
+	const loi = [...cauHoi.loi, ...phanThi.loi, ...hocVien.loi, ...(thongTin?.loi ?? [])];
 	if (loi.length) return { status: 400, body: { error: 'Dữ liệu Sheet có lỗi, chưa ghi gì vào D1.', chi_tiet: loi } };
 	if (!cauHoi.ds.length) return { status: 400, body: { error: 'Tab CauHoi không có câu hỏi nào.' } };
 	if (!phanThi.ds.length) return { status: 400, body: { error: 'Tab PhanThi không có phần thi nào.' } };
@@ -129,9 +150,17 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 			)
 			.bind(json(hocVien.ds))
 	);
+	if (thongTin) {
+		stmts.push(
+			db.prepare('DELETE FROM thong_tin'),
+			db.prepare(`INSERT INTO thong_tin (khoa, noi_dung) SELECT value->>'khoa', value->>'noi_dung' FROM json_each(?)`).bind(json(thongTin.ds))
+		);
+		if (thongTin.thoiLuongPhut) stmts.push(db.prepare('UPDATE cau_hinh SET thoi_luong_giay = ? WHERE id = 1').bind(thongTin.thoiLuongPhut * 60));
+	}
 	await db.batch(stmts);
 
 	const canhBao: string[] = [];
+	if (!thongTin) canhBao.push('Chưa có tab ThongTin: trang chào dùng nội dung mặc định, thời gian làm bài giữ nguyên.');
 	const { results: nhom } = await db
 		.prepare('SELECT n.nhom, n.so_cau, COUNT(c.ma) co FROM cau_hinh_nhom n LEFT JOIN cau_hoi c ON c.nhom = n.nhom GROUP BY n.nhom')
 		.all<{ nhom: string; so_cau: number; co: number }>();
@@ -148,6 +177,6 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 
 	return {
 		status: 200,
-		body: { cau_hoi: cauHoi.ds.length, phan_thi: phanThi.ds.length, hoc_vien: hocVien.ds.length, canh_bao: canhBao }
+		body: { cau_hoi: cauHoi.ds.length, phan_thi: phanThi.ds.length, hoc_vien: hocVien.ds.length, thoi_luong_phut: thongTin?.thoiLuongPhut ?? null, canh_bao: canhBao }
 	};
 }
