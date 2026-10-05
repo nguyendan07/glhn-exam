@@ -195,7 +195,7 @@
 <nav class="mb-4 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2" aria-label="Danh sách câu hỏi">
 	{#each ds as c, i (c.ma)}
 		<button
-			class={['btn', i === hienTai ? 'btn-primary' : daTraLoi(c.ma) && 'btn-soft btn-success']}
+			class={['btn', i === hienTai ? 'btn-primary' : daTraLoi(c.ma) ? 'btn-soft btn-success' : 'border-base-300 bg-base-100']}
 			aria-current={i === hienTai ? 'step' : undefined}
 			aria-label={`Câu ${i + 1}${daTraLoi(c.ma) ? ', đã trả lời' : ''}`}
 			onclick={() => (hienTai = i)}>{i + 1}</button
