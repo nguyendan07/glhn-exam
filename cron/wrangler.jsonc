@@ -1,0 +1,17 @@
+{
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "glhn-thi-cron",
+	"main": "index.ts",
+	"compatibility_date": "2026-10-05",
+	"triggers": { "crons": ["*/10 * * * *"] },
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "glhn-thi",
+			// Cùng database_id với wrangler.jsonc ở thư mục gốc
+			"database_id": "00000000-0000-0000-0000-000000000000"
+		}
+	]
+	// Secrets riêng cho worker này: GOOGLE_SA_EMAIL, GOOGLE_SA_PRIVATE_KEY, SHEET_ID
+	// npx wrangler secret put GOOGLE_SA_EMAIL -c cron/wrangler.jsonc
+}

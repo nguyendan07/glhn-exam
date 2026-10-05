@@ -12,7 +12,11 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
-		"gen": "wrangler types"
+		"gen": "wrangler types",
+		"deploy": "npm run build && wrangler deploy",
+		"deploy:cron": "wrangler deploy -c cron/wrangler.jsonc",
+		"db:migrate": "wrangler d1 migrations apply DB --local",
+		"db:migrate:remote": "wrangler d1 migrations apply DB --remote"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-cloudflare": "^8.0.0",
