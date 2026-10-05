@@ -1,0 +1,27 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "glhn-thi",
+	"compatibility_date": "2026-10-05",
+	"compatibility_flags": ["nodejs_als"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"workers_dev": true,
+	"preview_urls": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "glhn-thi",
+			// Thay bằng id thật sau khi chạy: npx wrangler d1 create glhn-thi
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"vars": {
+		"REQUIRE_ROSTER": "false"
+	}
+	// Secrets (đặt bằng `wrangler secret put`, local đặt trong .dev.vars):
+	// GOOGLE_SA_EMAIL, GOOGLE_SA_PRIVATE_KEY, SHEET_ID, ADMIN_TOKEN
+}

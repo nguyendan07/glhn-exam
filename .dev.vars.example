@@ -1,0 +1,4 @@
+GOOGLE_SA_EMAIL="ten-sa@du-an.iam.gserviceaccount.com"
+GOOGLE_SA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+SHEET_ID="id-cua-google-sheet"
+ADMIN_TOKEN="chuoi-ngau-nhien-dai"
