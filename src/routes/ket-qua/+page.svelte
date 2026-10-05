@@ -7,7 +7,8 @@
 
 <svelte:head><title>Kết quả thi</title></svelte:head>
 
-<h1 class="mb-4 text-2xl font-bold">Kết quả thi</h1>
+<div class="mx-auto max-w-xl">
+<h1 class="mb-4 text-2xl font-bold md:text-3xl">Kết quả thi</h1>
 
 <section class="card card-border bg-base-100">
 	<div class="card-body">
@@ -23,7 +24,7 @@
 	</div>
 </section>
 
-<div class="stats stats-vertical mt-4 w-full border border-base-300 bg-base-100">
+<div class="stats stats-vertical md:stats-horizontal mt-4 w-full border border-base-300 bg-base-100">
 	<div class="stat">
 		<div class="stat-title">Điểm trắc nghiệm</div>
 		<div class="stat-value">{data.diem_tn ?? 0}/{data.diem_tn_toi_da}</div>
@@ -41,3 +42,4 @@
 {/if}
 
 <p class="mt-4 text-sm opacity-70">Mã lượt thi: {tt.ma_luot}</p>
+</div>

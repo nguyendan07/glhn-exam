@@ -44,7 +44,8 @@
 	}
 </script>
 
-<h1 class="mb-4 text-2xl font-bold">Thông tin dự thi</h1>
+<div class="mx-auto max-w-xl">
+<h1 class="mb-4 text-2xl font-bold md:text-3xl">Thông tin dự thi</h1>
 
 <form class="card card-border bg-base-100" onsubmit={batDau}>
 	<div class="card-body">
@@ -99,3 +100,4 @@
 		</button>
 	</div>
 </form>
+</div>

@@ -158,7 +158,10 @@
 
 <svelte:head><title>Làm bài thi</title></svelte:head>
 
-<header class="card card-border sticky top-2 z-10 mb-4 bg-base-100">
+<!-- Điện thoại: một cột, đồng hồ dính trên cùng. Máy tính bảng/máy tính: cột trái dính (thông tin + đồng hồ + danh sách câu), cột phải là câu hỏi. -->
+<div class="md:grid md:grid-cols-[17rem_1fr] md:items-start md:gap-6">
+<div class="contents md:sticky md:top-4 md:block">
+<header class="card card-border sticky top-2 z-10 mb-4 bg-base-100 md:static">
 	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
 		<div class="flex min-w-0 flex-col">
 			<strong>{tt.ten_thanh} {tt.ho_ten}</strong>
@@ -199,7 +202,9 @@
 		>
 	{/each}
 </nav>
+</div>
 
+<div>
 {#if q}
 	<section class="card card-border bg-base-100">
 		<div class="card-body">
@@ -258,6 +263,8 @@
 	{#if conChoNop > 0}
 		<p class="text-sm opacity-70">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
 	{/if}
+</div>
+</div>
 </div>
 
 <dialog bind:this={hopXacNhan} class="modal" aria-labelledby="xn-title">

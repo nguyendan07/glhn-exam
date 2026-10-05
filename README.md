@@ -13,7 +13,7 @@ src/lib/server/
   sheets.ts              Client Google Sheets (JWT Web Crypto, retry 429), đồng bộ, resync
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
 src/routes/
-  layout.css             Tailwind + daisyUI (theme light/dark theo hệ thống, component kích thước mặc định)
+  layout.css             Tailwind + daisyUI (chỉ theme light, component kích thước mặc định)
   +page.svelte           Form 5 trường
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
