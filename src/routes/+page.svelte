@@ -95,12 +95,8 @@
 					oninput={gõ}
 					maxlength="100"
 					autocomplete="off"
-					aria-describedby="h-ten"
 					aria-controls="kq-tim"
 				/>
-				<p class="label whitespace-normal" id="h-ten">
-					Có Tên Thánh thì ghi kèm, ví dụ: Phêrô Nguyễn Văn An. Chưa có Tên Thánh thì chỉ cần ghi họ và tên.
-				</p>
 			</div>
 
 			<div id="kq-tim" aria-live="polite">
