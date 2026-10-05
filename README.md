@@ -105,8 +105,15 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
 1. Tạo file Sheet (xem [Tạo nhanh file Sheet từ các file CSV](#tạo-nhanh-file-sheet-từ-các-file-csv)), tải lên Google Sheets và chia sẻ cho email service account (quyền _Người chỉnh sửa_).
 2. Gọi import (thay địa chỉ bằng URL của Worker, xem ở trang Worker hoặc **Settings → Domains & Routes**):
    ```bash
-   curl -X POST https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import -H "Authorization: Bearer <ADMIN_TOKEN>"
+   curl -X POST https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import \
+     -H "Content-Type: application/json" -H "Authorization: Bearer <ADMIN_TOKEN>" -d '{}'
    ```
+   Windows PowerShell:
+   ```powershell
+   Invoke-RestMethod -Method Post -Uri "https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import" `
+     -ContentType "application/json" -Headers @{ Authorization = "Bearer <ADMIN_TOKEN>" } -Body "{}"
+   ```
+   **Bắt buộc có `Content-Type: application/json`** (và một body, dù chỉ là `{}`). Thiếu header này, hoặc gửi kiểu form, SvelteKit chặn ngay với lỗi `Cross-site POST form submissions are forbidden` (HTTP 403) trước cả khi kiểm tra token. Dùng Postman thì chọn Body → raw → JSON.
    Kết quả đúng có dạng `{"cau_hoi":74,"phan_thi":5,"hoc_vien":39,"thoi_luong_phut":90,"canh_bao":[]}`. Nếu `canh_bao` có nội dung (thiếu câu, nhóm không có trong `PhanThi`…), hãy sửa Sheet rồi import lại. Import chạy lại được nhiều lần.
 
 ### Bước 6. Kiểm tra trước ngày thi
@@ -147,6 +154,7 @@ Rồi thêm 3 secrets `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY`, `SHEET_ID` cho
 | Build xong nhưng deploy lỗi về D1            | `database_id` sai hoặc chưa phải D1 của tài khoản này                                | Sửa ở Bước 1, push lại                 |
 | Trang báo lỗi 500, log có `no such table`    | Chưa chạy migration                                                                  | Bước 3                                 |
 | Trang báo lỗi 500, log có `Chưa có cấu hình` | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                               | Bước 3                                 |
+| `/api/admin/…` trả 403 `Cross-site POST form submissions are forbidden` | Gọi POST thiếu `Content-Type: application/json` hoặc gửi kiểu form (cơ chế chống CSRF của SvelteKit, chỉ có ở bản chạy thật) | Thêm `-H "Content-Type: application/json" -d '{}'` (xem Bước 5) |
 | `/api/admin/…` trả 401                       | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …` | Bước 4                                 |
 | Import trả 400 "Không tìm thấy tab …"        | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                 | Sửa tên tab                            |
 | Import trả 500, log có `Sheets … 403`        | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                    | Chia sẻ lại, kiểm tra secrets          |
@@ -255,9 +263,9 @@ Mọi chuỗi do học viên nhập mà bắt đầu bằng `=`, `+`, `-`, `@` �
 
 ```bash
 # Nạp CauHoi, PhanThi, HocVien và ThongTin từ Sheet vào D1
-curl -X POST https://<app>/api/admin/import -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -X POST https://<app>/api/admin/import -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" -d '{}'
 # Đẩy lại các bài đã nộp nhưng chưa lên được Sheet (sync_pending = 1)
-curl -X POST https://<app>/api/admin/resync -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -X POST https://<app>/api/admin/resync -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" -d '{}'
 ```
 
 - **Câu hỏi** và **các phần của đề** (tab `PhanThi`) được thay toàn bộ. **Học viên** được cập nhật theo (tên Thánh + họ tên + số thứ tự nếu trùng) nên sửa giáo xứ hay thêm người mới đều chạy lại import được; người đã có lượt thi luôn được giữ lại dù bị xóa khỏi Sheet. Sửa chính tả họ tên của người _chưa thi_ cũng được (dòng cũ bị xóa, dòng mới được tạo); với người _đã thi_, dòng cũ vẫn giữ nên sẽ xuất hiện thêm một dòng mới trùng tên: hãy tự sửa trực tiếp trong D1 nếu muốn.
