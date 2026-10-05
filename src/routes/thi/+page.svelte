@@ -158,35 +158,38 @@
 
 <svelte:head><title>Làm bài thi</title></svelte:head>
 
-<header class="top card">
-	<div class="who">
+<header class="card sticky top-2 z-10 mb-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+	<div class="flex min-w-0 flex-col">
 		<strong>{tt.ten_thanh} {tt.ho_ten}</strong>
-		<span>{tt.giao_xu}, {tt.giao_phan}</span>
+		<span class="text-sm text-muted">{tt.giao_xu}, {tt.giao_phan}</span>
 	</div>
-	<div class="timer" class:low={conLai < 5 * 60_000} role="timer" aria-label="Thời gian còn lại">
+	<div
+		class={['self-center text-2xl font-bold tabular-nums', conLai < 5 * 60_000 && 'text-danger']}
+		role="timer"
+		aria-label="Thời gian còn lại"
+	>
 		{dinhDang(conLai)}
 	</div>
-	<div class="status" aria-live="polite">
+	<div class="col-span-full text-sm text-muted" aria-live="polite">
 		{#if !online}
-			<span class="error">Mất mạng — bài vẫn được giữ trên máy, sẽ lưu khi có mạng lại</span>
+			<span class="text-danger">Mất mạng — bài vẫn được giữ trên máy, sẽ lưu khi có mạng lại</span>
 		{:else if luu === 'dang_luu'}
 			<span>Đang lưu...</span>
 		{:else if luu === 'chua_luu'}
 			<span>Chưa lưu</span>
 		{:else if luu === 'loi'}
-			<span class="error">Lưu lỗi — sẽ thử lại</span>
+			<span class="text-danger">Lưu lỗi — sẽ thử lại</span>
 		{:else}
-			<span class="ok">Đã lưu</span>
+			<span class="text-ok">Đã lưu</span>
 		{/if}
 		<span>· Đã trả lời {soDaTraLoi}/{ds.length}</span>
 	</div>
 </header>
 
-<nav class="grid" aria-label="Danh sách câu hỏi">
+<nav class="mb-4 grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-1.5" aria-label="Danh sách câu hỏi">
 	{#each ds as c, i (c.ma)}
 		<button
-			class:done={daTraLoi(c.ma)}
-			class:cur={i === hienTai}
+			class={['btn px-0 py-1.5', daTraLoi(c.ma) && 'border-ok bg-ok/15', i === hienTai && 'font-bold outline-2 outline-primary']}
 			aria-current={i === hienTai ? 'step' : undefined}
 			aria-label={`Câu ${i + 1}${daTraLoi(c.ma) ? ', đã trả lời' : ''}`}
 			onclick={() => (hienTai = i)}>{i + 1}</button
@@ -196,14 +199,20 @@
 
 {#if q}
 	<section class="card">
-		<p class="muted">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
-		<h2 id="noi-dung">{q.noi_dung}</h2>
+		<p class="text-sm text-muted">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
+		<h2 id="noi-dung" class="mt-1 mb-4 text-lg font-semibold whitespace-pre-wrap">{q.noi_dung}</h2>
 		{#if q.lua_chon}
 			<div role="radiogroup" aria-labelledby="noi-dung">
 				{#each q.lua_chon as lc, i (i)}
-					<label class="opt" class:chosen={dapAn[q.ma] === i}>
+					<label
+						class={[
+							'mb-2 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3',
+							dapAn[q.ma] === i ? 'border-primary bg-primary/10' : 'border-line'
+						]}
+					>
 						<input
 							type="radio"
+							class="mt-1 size-[1.1rem] accent-primary"
 							name={q.ma}
 							checked={dapAn[q.ma] === i}
 							onchange={() => {
@@ -217,6 +226,7 @@
 			</div>
 		{:else}
 			<textarea
+				class="input"
 				rows="10"
 				maxlength="5000"
 				aria-labelledby="noi-dung"
@@ -226,135 +236,36 @@
 					daSua(false);
 				}}
 			></textarea>
-			<p class="muted">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
+			<p class="text-sm text-muted">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
 		{/if}
-		<div class="nav">
-			<button disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>
-			<button disabled={hienTai === ds.length - 1} onclick={() => hienTai++}>Câu sau →</button>
+		<div class="mt-4 flex justify-between gap-2">
+			<button class="btn" disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>
+			<button class="btn" disabled={hienTai === ds.length - 1} onclick={() => hienTai++}>Câu sau →</button>
 		</div>
 	</section>
 {/if}
 
-<div class="submit">
-	{#if thongBao}<p class="error" role="alert">{thongBao}</p>{/if}
-	<button class="primary" disabled={conChoNop > 0 || dangNop} onclick={() => hopXacNhan.showModal()}>
+<div class="mt-6 mb-12 text-center">
+	{#if thongBao}<p class="mb-2 text-danger" role="alert">{thongBao}</p>{/if}
+	<button class="btn btn-primary w-full" disabled={conChoNop > 0 || dangNop} onclick={() => hopXacNhan.showModal()}>
 		{dangNop ? 'Đang nộp...' : 'Nộp bài'}
 	</button>
 	{#if conChoNop > 0}
-		<p class="muted">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
+		<p class="mt-2 text-sm text-muted">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
 	{/if}
 </div>
 
-<dialog bind:this={hopXacNhan} aria-labelledby="xn-title">
-	<h2 id="xn-title">Nộp bài?</h2>
+<dialog
+	bind:this={hopXacNhan}
+	aria-labelledby="xn-title"
+	class="m-auto w-[min(420px,calc(100vw-2rem))] space-y-2 rounded-xl border border-line bg-card p-5 text-ink backdrop:bg-black/50"
+>
+	<h2 id="xn-title" class="text-lg font-semibold">Nộp bài?</h2>
 	<p>Bạn đã trả lời {soDaTraLoi}/{ds.length} câu.</p>
-	{#if soDaTraLoi < ds.length}<p class="error">Còn {ds.length - soDaTraLoi} câu chưa trả lời.</p>{/if}
+	{#if soDaTraLoi < ds.length}<p class="text-danger">Còn {ds.length - soDaTraLoi} câu chưa trả lời.</p>{/if}
 	<p>Sau khi nộp sẽ không sửa được nữa.</p>
-	<div class="nav">
-		<button onclick={() => hopXacNhan.close()}>Làm tiếp</button>
-		<button class="primary" onclick={nop} disabled={dangNop}>Nộp bài</button>
+	<div class="mt-4 flex justify-between gap-2">
+		<button class="btn" onclick={() => hopXacNhan.close()}>Làm tiếp</button>
+		<button class="btn btn-primary" onclick={nop} disabled={dangNop}>Nộp bài</button>
 	</div>
 </dialog>
-
-<style>
-	.top {
-		position: sticky;
-		top: 0.5rem;
-		z-index: 1;
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.25rem 1rem;
-		margin-bottom: 1rem;
-	}
-	.who {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-	.who span,
-	.status,
-	.muted {
-		color: var(--muted);
-		font-size: 0.9rem;
-	}
-	.timer {
-		font-size: 1.6rem;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		align-self: center;
-	}
-	.timer.low {
-		color: var(--danger);
-	}
-	.status {
-		grid-column: 1 / -1;
-	}
-	.ok {
-		color: var(--ok);
-	}
-	.grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-		gap: 0.4rem;
-		margin-bottom: 1rem;
-	}
-	.grid button {
-		padding: 0.4rem 0;
-	}
-	.grid .done {
-		background: color-mix(in srgb, var(--ok) 18%, var(--card));
-		border-color: var(--ok);
-	}
-	.grid .cur {
-		outline: 2px solid var(--primary);
-		font-weight: 700;
-	}
-	h2 {
-		font-size: 1.1rem;
-		margin: 0.25rem 0 1rem;
-		white-space: pre-wrap;
-	}
-	.opt {
-		display: flex;
-		gap: 0.6rem;
-		align-items: flex-start;
-		font-weight: 400;
-		padding: 0.7rem;
-		border: 1px solid var(--line);
-		border-radius: 8px;
-		margin-bottom: 0.5rem;
-		cursor: pointer;
-	}
-	.opt input {
-		margin-top: 0.3rem;
-		width: 1.1rem;
-		height: 1.1rem;
-	}
-	.opt.chosen {
-		border-color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 10%, var(--card));
-	}
-	.nav {
-		display: flex;
-		justify-content: space-between;
-		gap: 0.5rem;
-		margin-top: 1rem;
-	}
-	.submit {
-		margin: 1.5rem 0 3rem;
-		text-align: center;
-	}
-	.submit button {
-		width: 100%;
-	}
-	dialog {
-		border: 1px solid var(--line);
-		border-radius: 12px;
-		background: var(--card);
-		color: var(--text);
-		max-width: min(420px, calc(100vw - 2rem));
-	}
-	dialog::backdrop {
-		background: rgb(0 0 0 / 0.5);
-	}
-</style>

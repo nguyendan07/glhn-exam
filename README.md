@@ -13,6 +13,7 @@ src/lib/server/
   sheets.ts              Client Google Sheets (JWT Web Crypto, retry 429), đồng bộ, resync
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
 src/routes/
+  layout.css             Tailwind: màu theme (sáng/tối) + lớp card, btn, input, hint
   +page.svelte           Form 5 trường
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
@@ -34,7 +35,7 @@ Khi chạy dev, adapter dùng `getPlatformProxy` (tùy chọn `platformProxy` c�
 
 Chạy thử bản build trên runtime thật của Workers: `npm run build && npm run preview`.
 
-Nếu `npm run build` báo `Types at worker-configuration.d.ts are out of date`, chạy `npx wrangler types` để sinh lại (cần làm sau mỗi lần sửa `wrangler.jsonc`, và sau lần build đầu tiên vì khi đó mới có `_worker.js`).
+`worker-configuration.d.ts` (type của `env`) do `wrangler types` sinh ra và không commit; nó tự sinh lại khi `npm install`, `npm run build`, `npm run check`. Sửa `wrangler.jsonc` xong thì chạy `npm run gen`.
 
 Muốn thử nhanh luật thời gian khi chạy local, rút ngắn đề còn 60 giây:
 

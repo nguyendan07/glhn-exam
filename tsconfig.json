@@ -2,6 +2,8 @@
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"strict": true,
+		// ponytail: không có JS nguồn; tránh kiểm tra code build mà worker-configuration.d.ts (mainModule) kéo vào
+		"checkJs": false,
 		"types": [
 			"$app/types",
 			"./worker-configuration.d.ts"

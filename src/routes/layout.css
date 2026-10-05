@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-bg: #f6f7f9;
+	--color-card: #fff;
+	--color-ink: #1c2330;
+	--color-muted: #5d6675;
+	--color-line: #d8dce3;
+	--color-primary: #1f5fbf;
+	--color-on-primary: #fff;
+	--color-ok: #1d7a46;
+	--color-danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-bg: #12151b;
+		--color-card: #1b2029;
+		--color-ink: #e6e9ef;
+		--color-muted: #9aa3b2;
+		--color-line: #333b48;
+		--color-primary: #6a9ef0;
+		--color-on-primary: #0d1320;
+		--color-ok: #5cc68b;
+		--color-danger: #f08a82;
+	}
+}
+
+@layer base {
+	:root {
+		color-scheme: light dark;
+	}
+	body {
+		@apply bg-bg text-ink;
+	}
+	:focus-visible {
+		@apply outline-3 outline-offset-2 outline-primary;
+	}
+}
+
+/* Các mẫu lặp lại ở nhiều trang */
+@layer components {
+	.card {
+		@apply rounded-xl border border-line bg-card p-4;
+	}
+	.btn {
+		@apply min-h-11 cursor-pointer rounded-lg border border-line bg-card px-4 py-2.5 text-ink disabled:cursor-not-allowed disabled:opacity-50;
+	}
+	.btn-primary {
+		@apply border-primary bg-primary font-semibold text-on-primary;
+	}
+	.input {
+		@apply w-full rounded-lg border border-line bg-card px-3 py-2.5 text-ink;
+	}
+	.hint {
+		@apply mt-0.5 mb-1.5 text-sm text-muted;
+	}
+}

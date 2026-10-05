@@ -44,24 +44,25 @@
 	}
 </script>
 
-<h1>Thông tin dự thi</h1>
+<h1 class="mb-4 text-2xl font-bold">Thông tin dự thi</h1>
 
-<form class="card" onsubmit={batDau}>
-	<div class="field">
-		<label for="ten_thanh">Tên Thánh</label>
+<form class="card space-y-4" onsubmit={batDau}>
+	<div>
+		<label class="block font-semibold" for="ten_thanh">Tên Thánh</label>
 		<p class="hint" id="h-tt">Ví dụ: Phêrô, Maria, Giuse...</p>
-		<input id="ten_thanh" type="text" bind:value={f.ten_thanh} required maxlength="60" autocomplete="off" aria-describedby="h-tt" />
+		<input id="ten_thanh" class="input" type="text" bind:value={f.ten_thanh} required maxlength="60" autocomplete="off" aria-describedby="h-tt" />
 	</div>
-	<div class="field">
-		<label for="ho_ten">Họ và tên</label>
+	<div>
+		<label class="block font-semibold" for="ho_ten">Họ và tên</label>
 		<p class="hint" id="h-ht">Ghi đầy đủ, có dấu. Ví dụ: Nguyễn Văn An</p>
-		<input id="ho_ten" type="text" bind:value={f.ho_ten} required maxlength="100" autocomplete="name" aria-describedby="h-ht" />
+		<input id="ho_ten" class="input" type="text" bind:value={f.ho_ten} required maxlength="100" autocomplete="name" aria-describedby="h-ht" />
 	</div>
-	<div class="field">
-		<label for="ngay_sinh">Ngày tháng năm sinh</label>
+	<div>
+		<label class="block font-semibold" for="ngay_sinh">Ngày tháng năm sinh</label>
 		<p class="hint" id="h-ns">Định dạng dd/mm/yyyy. Ví dụ: 05/09/2010</p>
 		<input
 			id="ngay_sinh"
+			class="input"
 			type="text"
 			inputmode="numeric"
 			placeholder="dd/mm/yyyy"
@@ -73,33 +74,24 @@
 			aria-describedby="h-ns"
 		/>
 	</div>
-	<div class="field">
-		<label for="giao_xu">Giáo xứ</label>
+	<div>
+		<label class="block font-semibold" for="giao_xu">Giáo xứ</label>
 		<p class="hint" id="h-gx">Gõ để chọn trong danh sách gợi ý, hoặc tự nhập nếu không có.</p>
-		<input id="giao_xu" type="text" list="ds-giao-xu" bind:value={f.giao_xu} oninput={chonGiaoXu} required maxlength="60" autocomplete="off" aria-describedby="h-gx" />
+		<input id="giao_xu" class="input" type="text" list="ds-giao-xu" bind:value={f.giao_xu} oninput={chonGiaoXu} required maxlength="60" autocomplete="off" aria-describedby="h-gx" />
 		<datalist id="ds-giao-xu">
 			{#each ds as x (x.ten + x.giao_phan)}<option value={x.ten}>{x.giao_phan}</option>{/each}
 		</datalist>
 	</div>
-	<div class="field">
-		<label for="giao_phan">Giáo phận</label>
+	<div>
+		<label class="block font-semibold" for="giao_phan">Giáo phận</label>
 		<p class="hint" id="h-gp">Tự điền khi chọn giáo xứ có trong danh sách; vẫn sửa được.</p>
-		<input id="giao_phan" type="text" list="ds-giao-phan" bind:value={f.giao_phan} required maxlength="60" autocomplete="off" aria-describedby="h-gp" />
+		<input id="giao_phan" class="input" type="text" list="ds-giao-phan" bind:value={f.giao_phan} required maxlength="60" autocomplete="off" aria-describedby="h-gp" />
 		<datalist id="ds-giao-phan">
 			{#each dsGiaoPhan as x (x)}<option value={x}></option>{/each}
 		</datalist>
 	</div>
 
-	{#if loi}<p class="error" role="alert">{loi}</p>{/if}
+	{#if loi}<p class="text-danger" role="alert">{loi}</p>{/if}
 
-	<button class="primary full" type="submit" disabled={dangGui}>{dangGui ? 'Đang xử lý...' : 'Bắt đầu thi'}</button>
+	<button class="btn btn-primary w-full" type="submit" disabled={dangGui}>{dangGui ? 'Đang xử lý...' : 'Bắt đầu thi'}</button>
 </form>
-
-<style>
-	.field {
-		margin-bottom: 1rem;
-	}
-	.full {
-		width: 100%;
-	}
-</style>

@@ -7,10 +7,10 @@
 
 <svelte:head><title>Kết quả thi</title></svelte:head>
 
-<h1>Kết quả thi</h1>
+<h1 class="mb-4 text-2xl font-bold">Kết quả thi</h1>
 
 <section class="card">
-	<dl>
+	<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 [&_dd]:font-semibold [&_dt]:text-muted">
 		<dt>Tên Thánh</dt><dd>{tt.ten_thanh}</dd>
 		<dt>Họ và tên</dt><dd>{tt.ho_ten}</dd>
 		<dt>Ngày sinh</dt><dd>{tt.ngay_sinh}</dd>
@@ -21,48 +21,13 @@
 	</dl>
 </section>
 
-<section class="card score">
+<section class="card mt-4 space-y-1 text-center">
 	<p>Điểm trắc nghiệm</p>
-	<p class="big">{data.diem_tn ?? 0}<small>/{data.diem_tn_toi_da}</small></p>
-	{#if data.co_tu_luan}<p class="muted">Điểm tự luận: <b>chờ chấm</b></p>{/if}
+	<p class="text-4xl font-bold">{data.diem_tn ?? 0}<small class="text-xl text-muted">/{data.diem_tn_toi_da}</small></p>
+	{#if data.co_tu_luan}<p class="text-sm text-muted">Điểm tự luận: <b>chờ chấm</b></p>{/if}
 	{#if data.nop_tre}
-		<p class="error">Bài nộp trễ: chỉ chấm các đáp án đã được lưu trước khi hết giờ.</p>
+		<p class="text-danger">Bài nộp trễ: chỉ chấm các đáp án đã được lưu trước khi hết giờ.</p>
 	{/if}
 </section>
 
-<p class="muted">Mã lượt thi: {tt.ma_luot}</p>
-
-<style>
-	dl {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		gap: 0.35rem 1rem;
-		margin: 0;
-	}
-	dt {
-		color: var(--muted);
-	}
-	dd {
-		margin: 0;
-		font-weight: 600;
-	}
-	.score {
-		margin-top: 1rem;
-		text-align: center;
-	}
-	.score p {
-		margin: 0.25rem 0;
-	}
-	.big {
-		font-size: 2.5rem;
-		font-weight: 700;
-	}
-	.big small {
-		font-size: 1.2rem;
-		color: var(--muted);
-	}
-	.muted {
-		color: var(--muted);
-		font-size: 0.9rem;
-	}
-</style>
+<p class="mt-4 text-sm text-muted">Mã lượt thi: {tt.ma_luot}</p>
