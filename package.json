@@ -16,7 +16,9 @@
 		"deploy": "npm run build && wrangler deploy",
 		"deploy:cron": "wrangler deploy -c cron/wrangler.jsonc",
 		"db:migrate": "wrangler d1 migrations apply DB --local",
-		"db:migrate:remote": "wrangler d1 migrations apply DB --remote"
+		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+		"db:hoc-vien": "mkdir -p .wrangler && node scripts/hoc-vien-sql.mjs ds_hoc_vien.csv > .wrangler/hoc-vien.sql && wrangler d1 execute DB --local --file .wrangler/hoc-vien.sql",
+		"db:hoc-vien:remote": "mkdir -p .wrangler && node scripts/hoc-vien-sql.mjs ds_hoc_vien.csv > .wrangler/hoc-vien.sql && wrangler d1 execute DB --remote --file .wrangler/hoc-vien.sql"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-cloudflare": "^8.0.0",

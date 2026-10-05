@@ -1,13 +1,13 @@
 <script lang="ts">
 	import './layout.css';
-	import favicon from '#lib/assets/favicon.svg';
+	import logo from '#lib/assets/gpthaibinh90years.webp';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" type="image/webp" href={logo} />
 	<title>Thi trực tuyến</title>
 </svelte:head>
 

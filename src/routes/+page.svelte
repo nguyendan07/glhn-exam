@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import logo from '#lib/assets/gpthaibinh90years.webp';
 
 	// Nội dung trang chào: sửa tại đây.
 	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi';
@@ -65,6 +66,7 @@
 
 <div class="mx-auto max-w-xl">
 	<header class="mb-6 text-center">
+		<img src={logo} alt="Giáo phận Thái Bình 90 năm (1936 - 2026)" width="319" height="315" class="mx-auto mb-4 h-32 w-auto md:h-40" />
 		<h1 class="text-3xl font-bold md:text-4xl">{TIEU_DE}</h1>
 		<p class="mt-2 text-base-content/70">{PHU_DE}</p>
 	</header>

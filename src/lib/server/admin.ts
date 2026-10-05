@@ -1,4 +1,5 @@
-import { chuanHoa, lamSach } from './normalize';
+import { lamSach } from './normalize';
+import { parseHocVien } from './hoc-vien';
 import { docVung, ghiVung, TAB_KET_QUA, TIEU_DE_KET_QUA, type SheetEnv } from './sheets';
 import { sha256Hex } from './thi';
 
@@ -47,24 +48,6 @@ export function parseCauHoi(rows: string[][]) {
 		}
 		daCo.add(ma);
 		ds.push({ ma, loai, nhom, noi_dung: noiDung, lua_chon: luaChon && JSON.stringify(luaChon), dap_an: idx, diem });
-	});
-	return { ds, loi };
-}
-
-/** Tab HocVien: A Tên Thánh (có thể trống) | B Họ và tên | C Giáo xứ | D Giáo phận (tùy chọn). */
-export function parseHocVien(rows: string[][]) {
-	const loi: string[] = [];
-	const dem = new Map<string, number>();
-	const ds: { khoa: string; ten_thanh: string; ho_ten: string; tim_kiem: string; giao_xu: string; giao_phan: string }[] = [];
-	rows.forEach((h, i) => {
-		const [tenThanh, hoTen, giaoXu, giaoPhan] = [o(h, 0), o(h, 1), o(h, 2), o(h, 3)];
-		if (!tenThanh && !hoTen && !giaoXu && !giaoPhan) return;
-		if (!hoTen) return loi.push(`HocVien dòng ${i + 2}: thiếu Họ và tên.`);
-		if (tenThanh.length > 60 || hoTen.length > 100 || giaoXu.length > 60 || giaoPhan.length > 60) return loi.push(`HocVien dòng ${i + 2}: giá trị quá dài.`);
-		const goc = chuanHoa(hoTen) + '|' + chuanHoa(tenThanh);
-		const n = (dem.get(goc) ?? 0) + 1;
-		dem.set(goc, n);
-		ds.push({ khoa: `${goc}#${n}`, ten_thanh: tenThanh, ho_ten: hoTen, tim_kiem: chuanHoa(`${tenThanh} ${hoTen}`), giao_xu: giaoXu, giao_phan: giaoPhan });
 	});
 	return { ds, loi };
 }

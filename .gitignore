@@ -28,3 +28,6 @@ vite.config.ts.timestamp-*
 
 # Sinh bởi `wrangler types` (chạy trong prepare/build/check)
 worker-configuration.d.ts
+
+# Danh sách học viên thật (có tên người): không commit
+ds_hoc_vien.csv

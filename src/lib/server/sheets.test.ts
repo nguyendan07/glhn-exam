@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nhapTuSheet, parseCauHoi, parseHocVien } from './admin';
+import { nhapTuSheet, parseCauHoi } from './admin';
+import { parseHocVien } from './hoc-vien';
 import { dongBoLai, escapeCell, fetchRetry, hangKetQua } from './sheets';
 import { d1Test } from './testing/d1';
 import { batDau, nopBai } from './thi';

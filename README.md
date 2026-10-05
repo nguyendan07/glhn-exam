@@ -12,12 +12,14 @@ src/lib/server/
   thi.ts                 start / save / submit / kết quả (D1)
   sheets.ts              Client Google Sheets (JWT Web Crypto, retry 429), đồng bộ, resync
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
+  hoc-vien.ts            Đọc danh sách học viên (Sheet/CSV), sinh SQL nạp vào D1
 src/routes/
   layout.css             Tailwind + daisyUI, theme light tùy biến theo Kumo (UI Cloudflare): chữ 14px, ô/nút cao 36px, nút chính cam
   +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
   api/tim-kiem|start|save|submit|admin/import|admin/resync
+scripts/hoc-vien-sql.mjs  CSV danh sách học viên → SQL (npm run db:hoc-vien)
 cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 ```
 
@@ -27,6 +29,7 @@ cron/                    Worker riêng chạy Cron Trigger (tùy chọn)
 npm install
 cp .dev.vars.example .dev.vars        # sửa giá trị nếu muốn thử đồng bộ Sheets
 npm run db:migrate                    # tạo D1 local (.wrangler/) + dữ liệu mẫu
+npm run db:hoc-vien                   # (tùy chọn) thay học viên mẫu bằng ds_hoc_vien.csv
 npm run dev                           # http://localhost:5173
 npm test                              # Vitest
 ```
@@ -57,7 +60,9 @@ npx wrangler d1 execute DB --local --command "UPDATE cau_hinh SET thoi_luong_gia
    npx wrangler secret put SHEET_ID                # phần giữa /d/ và /edit trong URL của Sheet
    npx wrangler secret put ADMIN_TOKEN             # chuỗi ngẫu nhiên ≥ 16 ký tự, ví dụ: openssl rand -hex 24
    ```
-4. **Danh sách học viên**: nạp bằng import từ Sheet (xem bên dưới). Chỉ người có tên trong danh sách mới thi được.
+4. **Danh sách học viên**: chỉ người có tên trong danh sách mới thi được. Có hai cách nạp (đều chạy lại được nhiều lần, giữ nguyên người đã thi):
+   - Từ file CSV (cột đầu là "Tên Thánh + Họ tên" gộp một ô, dòng đầu là tiêu đề, các cột sau bỏ qua): đặt file ở thư mục gốc với tên `ds_hoc_vien.csv` rồi chạy `npm run db:hoc-vien:remote`. Lệnh này cũng xóa 5 học viên mẫu của migration. File CSV đã nằm trong `.gitignore` để không đưa tên người vào git.
+   - Từ tab `HocVien` trong Google Sheet bằng `POST /api/admin/import` (xem bên dưới).
 5. **Deploy**: `npm run deploy`.
 
 ### Cấu hình đề thi
@@ -98,7 +103,7 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 - Đáp án là chữ cái ứng với lựa chọn: G là A, H là B, …
 - Điểm để trống thì mặc định là 1; dùng được dấu phẩy thập phân, ví dụ `1,5`.
 
-**`HocVien`** (bắt buộc khi import): A: Tên Thánh (**có thể để trống** nếu chưa có) | B: Họ và tên | C: Giáo xứ | D: Giáo phận (hai cột cuối tùy chọn, chỉ để hiển thị và giúp phân biệt người trùng tên).
+**`HocVien`** (bắt buộc khi import; không cần nếu chỉ nạp bằng CSV): A: Tên Thánh (**có thể để trống** nếu chưa có) | B: Họ và tên | C: Giáo xứ | D: Giáo phận (hai cột cuối tùy chọn, chỉ để hiển thị và giúp phân biệt người trùng tên).
 
 **`KetQua`** (bắt buộc có tab, có thể để trống): app ghi kết quả vào đây. Lần import đầu tiên sẽ tự ghi dòng tiêu đề nếu tab đang trống. Các cột theo thứ tự:
 
@@ -147,6 +152,8 @@ npm run deploy:cron     # chạy mỗi 10 phút
 - **Đã thi rồi**: khi tìm thấy tên một người đã có lượt thi, kết quả hiện "Đã có lượt thi, hãy liên hệ giám thị" và không chọn được. Điểm chỉ xem được ở trình duyệt đã dùng để thi.
 - **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng *cả* tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.
 - **Ai cũng tìm được tên trong danh sách**: ô tìm không yêu cầu đăng nhập, nên ai mở trang cũng thấy tên, Giáo xứ và Giáo phận của người khớp (tối đa 8 dòng, phải gõ từ 2 ký tự, không hiện ngày sinh hay điểm). Nếu danh sách cần giữ kín, đặt cả trang sau Cloudflare Access hoặc chỉ mở link cho lớp thi.
+- **Logo/favicon**: `src/lib/assets/gpthaibinh90years.webp`, hiển thị ở đầu trang chào và dùng làm favicon (`+layout.svelte`). Bản sao trong `static/` không được dùng.
+- **Danh sách từ CSV không tách Tên Thánh**: toàn bộ chuỗi (ví dụ "Vinh Sơn Đỗ Văn Hậu") được lưu ở cột Họ và tên, cột Tên Thánh trên Sheet kết quả sẽ để trống. Muốn tách riêng, dùng tab `HocVien` với cột A là Tên Thánh.
 - **Trang chào**: tiêu đề và phụ đề nằm ở hai hằng `TIEU_DE`, `PHU_DE` đầu file `src/routes/+page.svelte`.
 - **Quota Sheets** là khoảng 60 lượt ghi mỗi phút. Khi nhiều người nộp cùng lúc, có thể một số bài không lên Sheet ngay (sau khi đã retry). Các bài đó vẫn giữ `sync_pending = 1` để resync hoặc cron đẩy lên sau. Resync gom nhiều hàng vào một request.
 - **Bài tự luận** tối đa 5000 ký tự mỗi câu. Khi import, họ và tên tối đa 100 ký tự; Tên Thánh, Giáo xứ, Giáo phận tối đa 60 ký tự.
