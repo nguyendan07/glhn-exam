@@ -13,7 +13,7 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "glhn-exam",
+			"database_name": "glhn-thi",
 			"database_id": "7ce38b38-3102-4c80-bca7-00b4e51dce73",
 			"migrations_dir": "migrations"
 		}
