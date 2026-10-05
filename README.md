@@ -34,6 +34,8 @@ Khi chạy dev, adapter dùng `getPlatformProxy` (tùy chọn `platformProxy` c�
 
 Chạy thử bản build trên runtime thật của Workers: `npm run build && npm run preview`.
 
+Nếu `npm run build` báo `Types at worker-configuration.d.ts are out of date`, chạy `npx wrangler types` để sinh lại (cần làm sau mỗi lần sửa `wrangler.jsonc`, và sau lần build đầu tiên vì khi đó mới có `_worker.js`).
+
 Muốn thử nhanh luật thời gian khi chạy local, rút ngắn đề còn 60 giây:
 
 ```bash
@@ -73,8 +75,8 @@ npx wrangler d1 execute DB --remote --command "DELETE FROM cau_hinh_nhom; INSERT
 ### Tạo service account
 
 1. Vào Google Cloud Console, tạo (hoặc chọn) một project, rồi bật **Google Sheets API**.
-2. Vào IAM & Admin → Service Accounts → *Create service account* (không cần cấp role).
-3. Mở service account đó, chọn Keys → *Add key* → JSON, rồi tải file về.
+2. Vào IAM & Admin → Service Accounts → _Create service account_ (không cần cấp role).
+3. Mở service account đó, chọn Keys → _Add key_ → JSON, rồi tải file về.
 4. Lấy `client_email` làm `GOOGLE_SA_EMAIL` và `private_key` làm `GOOGLE_SA_PRIVATE_KEY`.
 5. Mở Google Sheet, bấm **Chia sẻ** cho đúng email service account đó với quyền **Người chỉnh sửa**.
 
@@ -86,10 +88,10 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 
 **`CauHoi`** (bắt buộc khi import)
 
-| A: Mã | B: Loại | C: Nhóm | D: Nội dung | E: Đáp án | F: Điểm | G, H, I, …: Lựa chọn |
-|---|---|---|---|---|---|---|
-| KT01 | TN | kinh_thanh | Sách đầu tiên của Kinh Thánh? | A | 1 | Sáng Thế | Xuất Hành | … |
-| TL01 | TL | tu_luan | Trình bày … | | 5 | |
+| A: Mã | B: Loại | C: Nhóm    | D: Nội dung                   | E: Đáp án | F: Điểm | G: Lựa chọn A | H: Lựa chọn B | I, J, …: Lựa chọn C, D, … |
+| ----- | ------- | ---------- | ----------------------------- | --------- | ------- | ------------- | ------------- | ------------------------- |
+| KT01  | TN      | kinh_thanh | Sách đầu tiên của Kinh Thánh? | A         | 1       | Sáng Thế      | Xuất Hành     | I: Lêvi · J: Dân Số       |
+| TL01  | TL      | tu_luan    | Trình bày …                   |           | 5       |               |               |                           |
 
 - Loại là `TN` (trắc nghiệm) hoặc `TL` (tự luận).
 - Đáp án là chữ cái ứng với lựa chọn: G là A, H là B, …
@@ -97,7 +99,7 @@ Dòng 1 của mỗi tab là tiêu đề (bị bỏ qua khi import). Tên tab ph�
 
 **`GiaoXu`** (tùy chọn, dùng để gợi ý khi nhập): A: Tên giáo xứ | B: Giáo phận
 
-**`HocVien`** (tùy chọn, dùng khi `REQUIRE_ROSTER=true`): A: Họ và tên | B: Ngày sinh (dd/mm/yyyy, nên định dạng cột là *Văn bản thuần túy*) | C: Tên Thánh | D: Giáo xứ | E: Giáo phận. Chỉ họ tên và ngày sinh được dùng để đối chiếu; các cột còn lại chỉ để hiển thị.
+**`HocVien`** (tùy chọn, dùng khi `REQUIRE_ROSTER=true`): A: Họ và tên | B: Ngày sinh (dd/mm/yyyy, nên định dạng cột là _Văn bản thuần túy_) | C: Tên Thánh | D: Giáo xứ | E: Giáo phận. Chỉ họ tên và ngày sinh được dùng để đối chiếu; các cột còn lại chỉ để hiển thị.
 
 **`KetQua`** (bắt buộc có tab, có thể để trống): app ghi kết quả vào đây. Lần import đầu tiên sẽ tự ghi dòng tiêu đề nếu tab đang trống. Các cột theo thứ tự:
 
