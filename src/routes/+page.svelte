@@ -16,6 +16,7 @@
 	let daTim = $state(false); // đã có kết quả cho chuỗi đang gõ
 	let chon = $state<HocVien | null>(null);
 	let nutBatDau: HTMLButtonElement;
+	let hopXacNhan: HTMLDialogElement;
 	let loi = $state('');
 	let dangGui = $state(false);
 	let hen: ReturnType<typeof setTimeout> | undefined;
@@ -56,7 +57,6 @@
 
 	async function batDau() {
 		if (!chon || dangGui) return;
-		if (!confirm(`Bạn là ${ten(chon)}${noi(chon) ? ` (${noi(chon)})` : ''}? Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm OK.`)) return;
 		loi = '';
 		dangGui = true;
 		try {
@@ -66,9 +66,13 @@
 				body: JSON.stringify({ hoc_vien_id: chon.id })
 			});
 			const d: any = await r.json();
-			if (!r.ok) loi = d.error ?? 'Có lỗi xảy ra, vui lòng thử lại.';
+			if (!r.ok) {
+				hopXacNhan.close();
+				loi = d.error ?? 'Có lỗi xảy ra, vui lòng thử lại.';
+			}
 			else await goto(d.trang_thai === 'da_nop' ? '/ket-qua' : '/thi', { replaceState: true });
 		} catch {
+			hopXacNhan.close();
 			loi = 'Không kết nối được máy chủ. Kiểm tra mạng và thử lại.';
 		} finally {
 			dangGui = false;
@@ -130,9 +134,28 @@
 
 			{#if loi}<div class="alert alert-error" role="alert">{loi}</div>{/if}
 
-			<button bind:this={nutBatDau} class="btn btn-primary btn-block mt-2" type="button" disabled={!chon || dangGui} onclick={batDau}>
+			<button bind:this={nutBatDau} class="btn btn-primary btn-block mt-2" type="button" disabled={!chon || dangGui} onclick={() => hopXacNhan.showModal()}>
 				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu thi{/if}
 			</button>
 		</div>
 	</div>
 </div>
+
+<dialog bind:this={hopXacNhan} class="modal" aria-labelledby="bd-title">
+	<div class="modal-box">
+		<h2 id="bd-title" class="text-xl font-semibold">Bắt đầu làm bài?</h2>
+		{#if chon}
+			<p class="py-2">
+				Bạn là <b>{ten(chon)}</b>{#if noi(chon)} ({noi(chon)}){/if}?
+			</p>
+		{/if}
+		<p>Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm "Bắt đầu".</p>
+		<div class="modal-action">
+			<button class="btn" type="button" onclick={() => hopXacNhan.close()} disabled={dangGui}>Chọn lại</button>
+			<button class="btn btn-primary" type="button" onclick={batDau} disabled={dangGui}>
+				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu{/if}
+			</button>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop"><button>Đóng</button></form>
+</dialog>
