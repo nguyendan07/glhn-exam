@@ -106,14 +106,14 @@
 								{#if h.da_thi}
 									<div class="pointer-events-none flex flex-col items-start">
 										<span class="font-semibold">{ten(h)}</span>
-										{#if noi(h)}<span class="text-sm opacity-70">{noi(h)}</span>{/if}
+										{#if noi(h)}<span class="text-sm opacity-85">{noi(h)}</span>{/if}
 										<span class="text-sm text-warning">Đã có lượt thi. Nếu đây là bạn, hãy liên hệ giám thị.</span>
 									</div>
 								{:else}
 									<button type="button" onclick={() => (chon = h)}>
 										<span class="flex flex-col items-start text-left">
 											<span class="font-semibold">{ten(h)}</span>
-											{#if noi(h)}<span class="text-sm opacity-70">{noi(h)}</span>{/if}
+											{#if noi(h)}<span class="text-sm opacity-85">{noi(h)}</span>{/if}
 										</span>
 									</button>
 								{/if}

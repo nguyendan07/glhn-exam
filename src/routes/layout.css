@@ -64,16 +64,6 @@
 	outline-offset: 2px;
 }
 
-.card {
-	background-color: var(--color-base-100);
-}
-.card-border {
-	border-color: #e0e0e0;
-	box-shadow:
-		0 0 2px rgb(0 0 0 / 0.12),
-		0 2px 4px rgb(0 0 0 / 0.14);
-}
-
 .btn {
 	font-weight: 600;
 	transition:

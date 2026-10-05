@@ -12,7 +12,7 @@
 
 <section class="card card-border bg-base-100">
 	<div class="card-body">
-		<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 [&_dd]:font-semibold [&_dt]:opacity-70">
+		<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 [&_dd]:font-semibold [&_dt]:opacity-85">
 			{#if tt.ten_thanh}<dt>Tên Thánh</dt><dd>{tt.ten_thanh}</dd>{/if}
 			<dt>Họ và tên</dt><dd>{tt.ho_ten}</dd>
 			{#if tt.giao_xu}<dt>Giáo xứ</dt><dd>{tt.giao_xu}</dd>{/if}
@@ -40,5 +40,5 @@
 	<div class="alert alert-warning mt-4" role="alert">Bài nộp trễ: chỉ chấm các đáp án đã được lưu trước khi hết giờ.</div>
 {/if}
 
-<p class="mt-4 text-sm opacity-70">Mã lượt thi: {tt.ma_luot}</p>
+<p class="mt-4 text-sm opacity-85">Mã lượt thi: {tt.ma_luot}</p>
 </div>

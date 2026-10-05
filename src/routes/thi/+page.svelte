@@ -165,7 +165,7 @@
 	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
 		<div class="flex min-w-0 flex-col">
 			<strong>{[tt.ten_thanh, tt.ho_ten].filter(Boolean).join(' ')}</strong>
-			{#if tt.giao_xu || tt.giao_phan}<span class="text-sm opacity-70">{[tt.giao_xu, tt.giao_phan].filter(Boolean).join(', ')}</span>{/if}
+			{#if tt.giao_xu || tt.giao_phan}<span class="text-sm opacity-85">{[tt.giao_xu, tt.giao_phan].filter(Boolean).join(', ')}</span>{/if}
 		</div>
 		<div
 			class={['self-center text-2xl font-semibold tabular-nums', conLai < 5 * 60_000 && 'text-error']}
@@ -187,7 +187,7 @@
 			{:else}
 				<span class="badge badge-success">Đã lưu</span>
 			{/if}
-			<span class="text-sm opacity-70">Đã trả lời {soDaTraLoi}/{ds.length}</span>
+			<span class="text-sm opacity-85">Đã trả lời {soDaTraLoi}/{ds.length}</span>
 		</div>
 	</div>
 </header>
@@ -206,9 +206,9 @@
 
 <div>
 {#if q}
-	<section class="card card-border bg-base-100">
-		<div class="card-body">
-			<p class="text-sm opacity-70">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
+	<section class="card card-border">
+		<div class="card-body px-0">
+			<p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {q.loai === 'TN' ? 'Trắc nghiệm' : 'Tự luận'}</p>
 			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}</h2>
 			{#if q.lua_chon}
 				<div class="flex flex-col gap-2" role="radiogroup" aria-labelledby="noi-dung">
@@ -245,7 +245,7 @@
 						daSua(false);
 					}}
 				></textarea>
-				<p class="text-sm opacity-70">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
+				<p class="text-sm opacity-85">{(tuLuan[q.ma] ?? '').length}/5000 ký tự</p>
 			{/if}
 			<div class="card-actions mt-2 justify-between">
 				<button class="btn" disabled={hienTai === 0} onclick={() => hienTai--}>← Câu trước</button>
@@ -261,7 +261,7 @@
 		{#if dangNop}<span class="loading loading-spinner"></span>Đang nộp...{:else}Nộp bài{/if}
 	</button>
 	{#if conChoNop > 0}
-		<p class="text-sm opacity-70">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
+		<p class="text-sm opacity-85">Được nộp sau {dinhDang(conChoNop)} nữa (sau khi hết một nửa thời gian).</p>
 	{/if}
 </div>
 </div>
