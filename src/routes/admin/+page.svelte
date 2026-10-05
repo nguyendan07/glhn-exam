@@ -95,7 +95,7 @@
 							<p class="font-semibold">{kq.tieuDe}</p>
 							{#each kq.dong as d (d)}<p class="text-sm">{d}</p>{/each}
 							{#if kq.kieu === 'xung_dot'}
-								<button class="btn btn-sm mt-2" disabled={dangChay !== null} onclick={() => chay('import', true)}>Vẫn nạp (bỏ qua kiểm tra)</button>
+								<button class="btn mt-2" disabled={dangChay !== null} onclick={() => chay('import', true)}>Vẫn nạp (bỏ qua kiểm tra)</button>
 							{/if}
 						</div>
 					</div>
