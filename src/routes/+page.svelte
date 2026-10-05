@@ -67,11 +67,11 @@
 <div class="mx-auto max-w-xl">
 	<header class="mb-6 text-center">
 		<img src={logo} alt="Giáo phận Thái Bình 90 năm (1936 - 2026)" width="319" height="315" class="mx-auto mb-4 h-32 w-auto md:h-40" />
-		<h1 class="text-3xl font-bold md:text-4xl">{TIEU_DE}</h1>
+		<h1 class="text-[28px] leading-9 font-semibold md:text-[32px] md:leading-10">{TIEU_DE}</h1>
 		<p class="mt-2 text-base-content/70">{PHU_DE}</p>
 	</header>
 
-	<div class="card card-border bg-base-100">
+	<div class="card card-border">
 		<div class="card-body">
 			<div class="fieldset">
 				<label class="fieldset-legend" for="ten">Họ và tên</label>

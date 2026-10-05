@@ -8,7 +8,7 @@
 <svelte:head><title>Kết quả thi</title></svelte:head>
 
 <div class="mx-auto max-w-xl">
-<h1 class="mb-4 text-2xl font-bold md:text-3xl">Kết quả thi</h1>
+<h1 class="mb-4 text-[28px] leading-9 font-semibold">Kết quả thi</h1>
 
 <section class="card card-border bg-base-100">
 	<div class="card-body">

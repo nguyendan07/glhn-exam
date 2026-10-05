@@ -168,7 +168,7 @@
 			{#if tt.giao_xu || tt.giao_phan}<span class="text-sm opacity-70">{[tt.giao_xu, tt.giao_phan].filter(Boolean).join(', ')}</span>{/if}
 		</div>
 		<div
-			class={['self-center text-2xl font-bold tabular-nums', conLai < 5 * 60_000 && 'text-error']}
+			class={['self-center text-2xl font-semibold tabular-nums', conLai < 5 * 60_000 && 'text-error']}
 			role="timer"
 			aria-label="Thời gian còn lại"
 		>
@@ -269,7 +269,7 @@
 
 <dialog bind:this={hopXacNhan} class="modal" aria-labelledby="xn-title">
 	<div class="modal-box">
-		<h2 id="xn-title" class="text-lg font-bold">Nộp bài?</h2>
+		<h2 id="xn-title" class="text-xl font-semibold">Nộp bài?</h2>
 		<p class="py-2">Bạn đã trả lời {soDaTraLoi}/{ds.length} câu.</p>
 		{#if soDaTraLoi < ds.length}<p class="text-error">Còn {ds.length - soDaTraLoi} câu chưa trả lời.</p>{/if}
 		<p class="py-2">Sau khi nộp sẽ không sửa được nữa.</p>

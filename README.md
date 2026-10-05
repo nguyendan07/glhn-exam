@@ -14,7 +14,7 @@ src/lib/server/
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
   hoc-vien.ts            Đọc danh sách học viên (Sheet/CSV), sinh SQL nạp vào D1
 src/routes/
-  layout.css             Tailwind + daisyUI, theme light tùy biến: kích thước theo Kumo của Cloudflare (chữ 14px, ô/nút cao 36px), màu theo logo (xanh đậm #273ca7 chủ đạo, xanh dương #1670c0, vàng cát #dcbd8e)
+  layout.css             Tailwind + daisyUI, theme light theo Fluent 2 (Segoe UI 14px, ô/nút cao 32px, bo góc 4/8/12px); màu theo logo (xanh #273ca7 chủ đạo)
   +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
