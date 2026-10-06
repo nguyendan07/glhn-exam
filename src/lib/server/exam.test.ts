@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chamTN, taoDe, thoiGian, type CauHoi } from './exam';
+import { chamTN, taoDe, thoiGian, thuTuLuaChon, type CauHoi } from './exam';
 
 const tn = (ma: string, nhom: string, dap_an = 0): CauHoi => ({
 	ma, loai: 'TN', nhom, noi_dung: ma, lua_chon: JSON.stringify(['A', 'B', 'C', 'D', 'E', 'F']), dap_an, diem: 1
@@ -55,6 +55,61 @@ describe('random đề', () => {
 		const de = taoDe([dk], [phan('d', 1)]);
 		expect(de).toEqual([{ ma: 'd1' }]);
 		expect(chamTN(de, new Map([['d1', dk]]), { d1: 0 })).toEqual({ diem: 0, toiDa: 0 });
+	});
+});
+
+describe('thứ tự lựa chọn', () => {
+	const lap = (lc: string[], n = 300) => Array.from({ length: n }, () => thuTuLuaChon(lc));
+
+	it('câu thường: là hoán vị và thật sự xáo đủ mọi thứ tự', () => {
+		const kq = lap(['Một', 'Hai', 'Ba', 'Bốn'], 600);
+		for (const t of kq) expect([...t].sort()).toEqual([0, 1, 2, 3]);
+		expect(new Set(kq.map((t) => t.join())).size).toBe(24);
+	});
+
+	it('"Cả A, B và C" ở vị trí D luôn giữ ở D, ba lựa chọn còn lại vẫn được xáo', () => {
+		const kq = lap(['Một', 'Hai', 'Ba', 'Cả A, B và C']);
+		expect(kq.every((t) => t[3] === 3)).toBe(true);
+		expect(new Set(kq.map((t) => t.join())).size).toBe(6);
+	});
+
+	it.each(['Tất cả đều đúng', 'Tất cả đều đúng.', 'Tất cả đều sai', 'Cả hai đều đúng', 'Không có đáp án nào đúng'])(
+		'"%s" không có tham chiếu chữ cái: giữ nguyên vị trí, các lựa chọn khác vẫn xáo',
+		(cuoi) => {
+			const kq = lap(['Một', 'Hai', 'Ba', cuoi]);
+			expect(kq.every((t) => t[3] === 3)).toBe(true);
+			expect(new Set(kq.map((t) => t.join())).size).toBe(6);
+		}
+	);
+
+	it('lựa chọn cố định không nằm cuối vẫn giữ đúng vị trí gốc của nó', () => {
+		const kq = lap(['Một', 'Tất cả đều sai', 'Ba', 'Bốn']);
+		expect(kq.every((t) => t[1] === 1)).toBe(true);
+		expect(new Set(kq.map((t) => t.join())).size).toBe(6);
+	});
+
+	it.each([
+		['Cả A và C', ['Một', 'Hai', 'Ba', 'Cả A và C']],
+		['Cả A và B', ['Một', 'Hai', 'Ba', 'Cả A và B']],
+		['Cả B và D (ở vị trí C)', ['Một', 'Hai', 'Cả B và D', 'Bốn']],
+		['Cả B, C và D (thiếu A so với "tất cả" khi ở D)', ['Một', 'Hai', 'Ba', 'Cả B, C và D']]
+	])('%s: nêu chữ cái cụ thể nên cả câu giữ nguyên thứ tự gốc', (_ten, lc) => {
+		for (const t of lap(lc, 100)) expect(t).toEqual([0, 1, 2, 3]);
+	});
+
+	it('chữ "C" trong "Cả" không bị hiểu là tham chiếu lựa chọn C', () => {
+		const kq = lap(['Một', 'Hai', 'Ba', 'Cả ba đều đúng']);
+		expect(new Set(kq.map((t) => t.join())).size).toBe(6);
+	});
+
+	it('chấm điểm đúng với đáp án là lựa chọn cố định ("Cả A, B và C" là đáp án đúng)', () => {
+		const q: CauHoi = { ma: 'q', loai: 'TN', nhom: 'n', noi_dung: '?', lua_chon: JSON.stringify(['Một', 'Hai', 'Ba', 'Cả A, B và C']), dap_an: 3, diem: 2 };
+		for (let k = 0; k < 50; k++) {
+			const [m] = taoDe([q], [phan('n', 1)]);
+			const hienThi = m.thu_tu!.indexOf(3);
+			expect(hienThi).toBe(3);
+			expect(chamTN([m], new Map([['q', q]]), { q: hienThi })).toEqual({ diem: 2, toiDa: 2 });
+		}
 	});
 });
 

@@ -30,6 +30,29 @@ export function shuffle<T>(a: readonly T[]): T[] {
 	return r;
 }
 
+// Lựa chọn dạng "Cả A, B và C", "Tất cả đều đúng", "Không có đáp án nào đúng"... luôn giữ nguyên vị trí gốc khi xáo.
+const CO_DINH = /^(cả|tất cả|các ý trên|không có (đáp án|câu|ý) nào|[A-D]\s*(,|và)\s*[A-D](?![\p{L}]))/iu;
+const CHU_CAI = /(?<![\p{L}])([A-D])(?![\p{L}])/gu;
+
+/**
+ * Thứ tự hiển thị các lựa chọn: thu_tu[i] = chỉ số gốc của lựa chọn hiển thị thứ i.
+ * Lựa chọn khớp CO_DINH giữ nguyên vị trí, các lựa chọn còn lại xáo trong những vị trí còn trống.
+ * Nếu một lựa chọn cố định nêu chữ cái cụ thể mà không phải "tất cả các lựa chọn còn lại" (ví dụ "Cả A và C"),
+ * nghĩa của nó phụ thuộc vị trí A, C nên cả câu giữ nguyên thứ tự gốc. "Cả A, B và C" đặt ở D thì vẫn xáo được A, B, C.
+ */
+export function thuTuLuaChon(luaChon: readonly string[]): number[] {
+	const n = luaChon.length;
+	const goc = [...Array(n).keys()];
+	const coDinh = goc.filter((i) => CO_DINH.test(luaChon[i].trim()));
+	const dongBang = coDinh.some((i) => {
+		const tamChieu = new Set([...luaChon[i].matchAll(CHU_CAI)].map((m) => m[1].charCodeAt(0) - 65));
+		return tamChieu.size > 0 && (tamChieu.size !== n - 1 || tamChieu.has(i) || [...tamChieu].some((c) => c >= n));
+	});
+	if (dongBang || coDinh.length >= n - 1) return goc;
+	const tu_do = shuffle(goc.filter((i) => !coDinh.includes(i)));
+	return goc.map((i) => (coDinh.includes(i) ? i : tu_do.shift()!));
+}
+
 /** Một phần của đề (theo thứ tự). xao_tron=false: lấy so_cau câu đầu của nhóm theo thứ tự trong ngân hàng, không xáo. */
 export type Phan = { nhom: string; so_cau: number; xao_tron: boolean };
 
@@ -43,7 +66,7 @@ export function taoDe(nganHang: readonly CauHoi[], phan: readonly Phan[]): MucDe
 	}
 	return chon.map((q) =>
 		q.loai === 'TN'
-			? { ma: q.ma, thu_tu: shuffle([...JSON.parse(q.lua_chon!).keys()] as number[]) }
+			? { ma: q.ma, thu_tu: thuTuLuaChon(JSON.parse(q.lua_chon!)) }
 			: { ma: q.ma }
 	);
 }
