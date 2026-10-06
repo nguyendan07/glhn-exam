@@ -14,7 +14,7 @@ src/lib/server/
   admin.ts               Xác thực ADMIN_TOKEN, import từ Sheet
   hoc-vien.ts            Đọc danh sách học viên (Sheet/CSV), sinh SQL nạp vào D1
 src/routes/
-  layout.css             Tailwind + daisyUI, theme light theo Fluent 2 (ô/nút cao 32px, bo góc 4/8/12px), font Merriweather tự lưu trữ (@fontsource), màu theo logo (xanh #273ca7)
+  layout.css             Tailwind + daisyUI, theme light theo Fluent 2 nhưng ưu tiên máy tính bảng (ô/nút cao 44px, chữ 16px, bo góc 4/8/12px), font Merriweather tự lưu trữ (@fontsource), màu theo logo (xanh #273ca7)
   +page.svelte           Trang chào + ô tìm tên (live search)
   thi/                   Trang làm bài
   ket-qua/               Trang kết quả
@@ -300,10 +300,9 @@ npm run deploy:cron     # chạy mỗi 10 phút
 
 ## Các quyết định khi đặc tả chưa rõ (chọn phương án an toàn)
 
-- **Vào lại từ thiết bị khác**: cùng trình duyệt (còn cookie) thì vào lại đúng lượt đang làm. Thiết bị khác thì bị chặn với thông báo "liên hệ giám thị", để người biết tên người khác không chiếm được bài của họ. Giám thị mở khóa như sau, rồi học viên tìm và chọn lại tên ở thiết bị mới:
-  ```bash
-  npx wrangler d1 execute DB --remote --command "UPDATE luot_thi SET token_hash = NULL WHERE ho_ten_chuan_hoa = 'nguyen van an'"  # thêm AND ten_thanh_chuan_hoa = '...' nếu trùng tên
-  ```
+- **Vào lại bài thi**: cùng trình duyệt (còn cookie) thì tìm và chọn lại tên là tiếp tục đúng lượt đang làm, kể cả khi mở lại từ liên kết, mã QR hay ứng dụng khác (cookie đặt `SameSite=Lax`; `Strict` không được gửi trong các trường hợp đó nên trước đây học viên iPad bị đưa về trang chào và báo "đã có lượt thi"). Thiết bị khác, hoặc máy bị mất cookie (xóa dữ liệu duyệt web, chế độ riêng tư, trình duyệt trong ứng dụng), thì bị chặn với thông báo "liên hệ giám thị", để người biết tên người khác không chiếm được bài của họ. Giám thị vào **`/admin` → Mở khóa học viên**, tìm tên rồi bấm **Mở khóa**; học viên mở lại trang thi, tìm và chọn lại tên là làm tiếp (đồng hồ vẫn chạy từ lúc bắt đầu). Máy cũ mất quyền vào lượt đó.
+- **Xáo đáp án trắc nghiệm**: lựa chọn kiểu "Cả A, B và C", "Tất cả đều đúng", "Tất cả đều sai"… luôn giữ nguyên vị trí gốc, các lựa chọn còn lại xáo trong chỗ trống. Nếu lựa chọn đó nêu chữ cái cụ thể mà không phải "tất cả các lựa chọn còn lại" (ví dụ "Cả A và C", "Cả B và D"), nghĩa của nó phụ thuộc vị trí các chữ cái nên **cả câu giữ nguyên thứ tự**. Với đề hiện tại: 7 câu giữ nguyên cả câu, 46 câu ghim một lựa chọn, 13 câu xáo tự do.
+- **Máy tính bảng là thiết bị chính**: ô và nút cao 44px (vùng chạm), chữ 16px (iPad không tự phóng to khi chạm vào ô nhập), mỗi lựa chọn cao ≥ 56px. iPad dọc dùng một cột (danh sách câu gập lại), iPad ngang và máy tính (≥ 1024px) dùng hai cột. Bài làm dở được lưu cả khi trang bị tải lại hoặc đóng (`pagehide` + `keepalive`), vì Safari bỏ qua `beforeunload`.
 - **Bỏ dở không nộp**: nếu học viên quay lại (cùng trình duyệt) sau khi hết giờ, trang sẽ tự nộp ngay. Nếu đã quá T + dung sai thì bài được đánh dấu nộp trễ và chấm theo đáp án đã lưu. Lượt không bao giờ quay lại vẫn ở trạng thái `dang_thi`; xem bằng `SELECT * FROM luot_thi WHERE trang_thai='dang_thi'`.
 - **Đã thi rồi**: khi tìm thấy tên một người đã có lượt thi, kết quả hiện "Đã có lượt thi, hãy liên hệ giám thị" và không chọn được. Điểm chỉ xem được ở trình duyệt đã dùng để thi.
 - **Trùng họ tên**: danh sách cho phép trùng. Mỗi dòng là một người; kết quả tìm hiển thị Giáo xứ/Giáo phận để phân biệt. Hạn chế: nếu hai người trùng _cả_ tên Thánh, họ tên và giáo xứ thì không phân biệt được, và người đến sau có thể chọn nhầm dòng chưa dùng; nên thêm giáo xứ hoặc ghi chú vào tên trong Sheet.

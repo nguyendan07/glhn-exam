@@ -71,7 +71,8 @@
 				const r = await fetch('/api/save', {
 					method: 'PUT',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify(baiLam())
+					body: JSON.stringify(baiLam()),
+					keepalive: true // tiếp tục gửi được ngay cả khi trang đang bị đóng/tải lại (iPad Safari)
 				});
 				const j: any = await r.json();
 				if (r.ok) {
@@ -152,7 +153,12 @@
 		const roiTrang = (e: BeforeUnloadEvent) => {
 			if (dirty || dangGuiLuu) e.preventDefault();
 		};
+		// Safari trên iPad bỏ qua beforeunload; pagehide chạy khi tải lại/đóng tab nên lưu nốt phần chưa lưu.
+		const anTrang = () => {
+			if (dirty) luuBai();
+		};
 		document.addEventListener('visibilitychange', anTab);
+		addEventListener('pagehide', anTrang);
 		addEventListener('online', len);
 		addEventListener('offline', xuong);
 		addEventListener('beforeunload', roiTrang);
@@ -164,17 +170,18 @@
 			removeEventListener('online', len);
 			removeEventListener('offline', xuong);
 			removeEventListener('beforeunload', roiTrang);
+			removeEventListener('pagehide', anTrang);
 		};
 	});
 </script>
 
 <svelte:head><title>Làm bài thi</title></svelte:head>
 
-<!-- Điện thoại: một cột, đồng hồ dính trên cùng. Máy tính bảng/máy tính: cột trái dính (thông tin + đồng hồ + danh sách câu), cột phải là câu hỏi. -->
-<div class="md:grid md:grid-cols-[17rem_1fr] md:items-start md:gap-6">
-<div class="contents md:sticky md:top-4 md:block md:max-h-[calc(100dvh-2rem)] md:overflow-y-auto">
-<header class="card card-border sticky top-2 z-10 mb-4 bg-base-100 md:static">
-	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
+<!-- Điện thoại và máy tính bảng dọc: một cột, đồng hồ dính trên cùng, danh sách câu gập lại. Máy tính bảng ngang/máy tính (≥1024px): cột trái dính (thông tin + đồng hồ + danh sách câu), cột phải là câu hỏi. -->
+<div class="lg:grid lg:grid-cols-[17rem_1fr] lg:items-start lg:gap-6">
+<div class="contents lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto">
+<header class="card card-border sticky top-2 z-10 mb-4 bg-base-100 lg:static">
+	<div class="card-body grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 p-4">
 		<div class="flex min-w-0 flex-col">
 			<strong>{[tt.ten_thanh, tt.ho_ten].filter(Boolean).join(' ')}</strong>
 			{#if tt.giao_xu || tt.giao_phan}<span class="text-sm opacity-85">{[tt.giao_xu, tt.giao_phan].filter(Boolean).join(', ')}</span>{/if}
@@ -206,7 +213,7 @@
 
 <button
 	type="button"
-	class="btn mb-2 w-full justify-between md:hidden"
+	class="btn mb-2 w-full justify-between lg:hidden"
 	aria-expanded={moDs}
 	aria-controls="ds-cau"
 	onclick={() => (moDs = !moDs)}
@@ -214,7 +221,7 @@
 	<span>Danh sách câu hỏi</span>
 	<span class="text-sm opacity-85">{soDaTraLoi}/{ds.length} {moDs ? '▴' : '▾'}</span>
 </button>
-<nav id="ds-cau" class={['mb-4 flex-col gap-3', moDs ? 'flex' : 'hidden md:flex']} aria-label="Danh sách câu hỏi">
+<nav id="ds-cau" class={['mb-4 flex-col gap-3', moDs ? 'flex' : 'hidden lg:flex']} aria-label="Danh sách câu hỏi">
 	{#each nhomNav as g (g.nhom)}
 		<div>
 			<p class="mb-1 text-xs font-semibold opacity-85">{g.ten || g.nhom}</p>
@@ -250,13 +257,13 @@
 				</div>
 			{/if}
 			<!-- <p class="text-sm opacity-85">Câu {hienTai + 1}/{ds.length} · {NHAN_LOAI[q.loai]} · {q.diem} điểm</p> -->
-			<h2 id="noi-dung" class="card-title whitespace-pre-wrap">{q.noi_dung}<span class="text-sm font-normal">({q.diem} điểm)</span></h2>
+			<h2 id="noi-dung" class="text-xl leading-snug font-semibold whitespace-pre-wrap">{q.noi_dung}{' '}<span class="text-sm font-normal whitespace-nowrap">({q.diem} điểm)</span></h2>
 			{#if q.lua_chon}
 				<div class="flex flex-col gap-2" role="radiogroup" aria-labelledby="noi-dung">
 					{#each q.lua_chon as lc, i (i)}
 						<label
 							class={[
-								'rounded-box flex cursor-pointer items-start gap-3 border p-3',
+								'rounded-box flex min-h-14 cursor-pointer items-start gap-4 border px-4 py-3.5',
 								dapAn[q.ma] === i ? 'border-primary bg-primary/10' : 'border-base-300'
 							]}
 						>
@@ -277,7 +284,7 @@
 			{:else}
 				<textarea
 					class="textarea w-full"
-					rows={q.loai === 'DK' ? 3 : 10}
+					rows={q.loai === 'DK' ? 4 : 12}
 					maxlength={q.loai === 'DK' ? 1000 : 5000}
 					aria-labelledby="noi-dung"
 					value={tuLuan[q.ma] ?? ''}
