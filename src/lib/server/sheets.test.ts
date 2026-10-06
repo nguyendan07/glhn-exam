@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nhapTuSheet, parseCauHoi, parsePhanThi, parseThongTin } from './admin';
 import { parseHocVien } from './hoc-vien';
-import { dongBoLai, escapeCell, fetchRetry, hangKetQua } from './sheets';
+import type { CauHoi } from './exam';
+import { dongBoLai, escapeCell, fetchRetry, hangKetQua, TIEU_DE_KET_QUA } from './sheets';
 import { d1Test } from './testing/d1';
 import { batDau, nopBai, thongTinTrangChao } from './thi';
 
@@ -12,15 +13,28 @@ describe('chống formula injection', () => {
 		expect(escapeCell("'abc")).toBe("'abc");
 	});
 
-	it('mọi trường học viên nhập trong hàng KetQua đều được escape', () => {
-		const h = hangKetQua({
-			id: 'x', ten_thanh: '=HYPERLINK("http://x")', ho_ten: '@Ai', giao_xu: '+GX', giao_phan: '-GP',
-			started_at: 0, submitted_at: 1, nop_tre: 1, so_lan_roi_tab: 2, diem_tn: 3, tu_luan: JSON.stringify({ TL01: '=bad()' }), sheet_row: null
-		});
-		expect(h).toHaveLength(13);
+	it('mọi trường học viên nhập trong hàng KetQua đều được escape; có IP, vị trí, trình duyệt và bài đã nộp', () => {
+		const q: CauHoi = { ma: 'Q1', loai: 'TN', nhom: 'n', noi_dung: 'Hỏi gì?', lua_chon: JSON.stringify(['Một', 'Hai', 'Ba', 'Cả A, B và C']), dap_an: 1, diem: 2 };
+		const t: CauHoi = { ma: 'T1', loai: 'TL', nhom: 'n', noi_dung: 'Viết', lua_chon: null, dap_an: null, diem: 14 };
+		const may = { ip: '=1.2.3.4', quoc_gia: 'VN', thanh_pho: 'Thái Bình', vung: 'Thái Bình', ua: 'Mozilla/5.0 (iPad; CPU OS 17_0) AppleWebKit Version/17 Safari/604.1' };
+		const h = hangKetQua(
+			{
+				id: 'x', ten_thanh: '=HYPERLINK("http://x")', ho_ten: '@Ai', giao_xu: '+GX', giao_phan: '-GP',
+				started_at: 0, submitted_at: 1, nop_tre: 1, so_lan_roi_tab: 2, diem_tn: 3, tu_luan: JSON.stringify({ T1: '=bad()' }),
+				de_thi: JSON.stringify([{ ma: 'Q1', thu_tu: [0, 1, 2, 3] }, { ma: 'T1' }]), dap_an_tn: JSON.stringify({ Q1: 0 }),
+				may_cuoi: JSON.stringify(may), sheet_row: null
+			},
+			new Map([['Q1', q], ['T1', t]])
+		);
+		expect(h).toHaveLength(17);
 		expect(h.slice(1, 5)).toEqual(['\'=HYPERLINK("http://x")', "'@Ai", "'+GX", "'-GP"]);
-		expect(h[10]).toBe('[TL01]\n=bad()');
+		expect(h[10]).toBe('[T1]\n=bad()');
 		expect(h[12]).toBe('=N(INDIRECT("J"&ROW()))+N(INDIRECT("L"&ROW()))');
+		expect(h[13]).toBe("'=1.2.3.4"); // IP cũng được escape
+		expect(h[14]).toBe('Thái Bình, VN');
+		expect(h[15]).toBe(`Safari · iPad — ${may.ua}`);
+		expect(h[16]).toBe('Câu 1 [Q1] (2 điểm): Hỏi gì?\n  Chọn: A. Một → SAI (đáp án đúng: B. Hai)\n\nCâu 2 [T1] (14 điểm): Viết\n  Trả lời: =bad()');
+		expect(TIEU_DE_KET_QUA).toHaveLength(17);
 	});
 });
 
@@ -83,6 +97,9 @@ describe('resync', () => {
 		const env = await moiEnv();
 		const r = await dongBoLai(db, env, 10_000_000);
 		expect(r).toEqual({ da_dong_bo: 2, cap_nhat: 1, them_moi: 1 });
+		const them = calls.find((c) => c.url.includes(':append'))!;
+		expect(them.body.values[0]).toHaveLength(17);
+		expect(them.body.values[0][16]).toMatch(/^Câu 1 \[\w+\] \(\d+ điểm\): .+\n {2}(Chọn|Không trả lời|Trả lời)/);
 		const upd = calls.find((c) => c.url.endsWith('values:batchUpdate'))!;
 		expect(upd.body.data[0].range).toBe('KetQua!A2:K2');
 		expect(upd.body.data[0].values[0]).toHaveLength(11);
@@ -199,7 +216,9 @@ describe('import', () => {
 		const hv = () => db.prepare('SELECT id, ten_thanh, ho_ten, giao_xu FROM hoc_vien_cho_phep ORDER BY id').all<any>().then((x) => x.results);
 		const [an, binh] = await hv();
 		expect(an).toMatchObject({ ten_thanh: 'Phêrô', ho_ten: 'Nguyễn Văn An', giao_xu: 'GX Một' });
-		expect(calls.some((c) => c.method === 'PUT' && c.body.values[0][0] === 'Mã lượt')).toBe(true);
+		const tieuDe = calls.find((c) => c.method === 'PUT' && c.body.values[0][0] === 'Mã lượt')!;
+		expect(tieuDe.url).toContain('KetQua!A1:Q1'); // vùng phải đủ rộng cho 17 tiêu đề, nếu không Google từ chối
+		expect(tieuDe.body.values[0]).toHaveLength(17);
 
 		// Bình đã có lượt thi; import lại: An sửa giáo xứ, Bình bị xóa khỏi Sheet nhưng vẫn giữ vì đã thi, thêm Cúc.
 		const st = await batDau(db, { hoc_vien_id: binh.id }, undefined);

@@ -1,10 +1,8 @@
-// Nhật ký bài thi: ghi lại diễn biến và thông tin máy của học viên để đối chiếu khi có khiếu nại.
+// Nhật ký bài thi: ghi lại diễn biến (vào/ra, rời màn hình, đổi máy) và thông tin máy của học viên để đối chiếu khi có khiếu nại.
+// Bài làm KHÔNG được ghi từng lần lưu: chỉ bản đã nộp được ghi vào Google Sheet (cột "Bài đã nộp").
 // Quy tắc: nhật ký KHÔNG BAO GIỜ được làm hỏng bài thi, nên ghi sau thao tác chính, riêng một batch, và nuốt lỗi.
-import { sha256Hex } from './normalize';
-
 export type May = { ip: string; quoc_gia?: string; thanh_pho?: string; vung?: string; mui_gio?: string; nha_mang?: string; ua?: string };
 export type SuKien = { su_kien: string; chi_tiet?: unknown; may?: string | null };
-type BaiLamRut = { tn: Record<string, number>; tl: Record<string, string> };
 
 const cat = (v: unknown, n: number) =>
 	typeof v === 'string' && v ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : undefined;
@@ -33,21 +31,6 @@ export function mayTuYeuCau(request: Request, getClientAddress: () => string): M
 		/* không có IP: vẫn ghi các thông tin còn lại */
 	}
 	return thongTinMay(request, ip);
-}
-
-/**
- * Các đáp án thay đổi giữa hai lần lưu. Trắc nghiệm ghi chỉ số đáp án đã chọn (theo thứ tự hiển thị); tự luận chỉ ghi độ dài và
- * mã băm ngắn (gõ 2 giây lưu một lần, chép nguyên văn mỗi lần sẽ rất tốn chỗ; bản đầy đủ nằm ở bài làm). Độ dài tăng vọt giữa hai lần = dán từ nơi khác.
- */
-export async function deltaBaiLam(truoc: BaiLamRut, sau: BaiLamRut) {
-	const tn: Record<string, number> = {};
-	for (const [ma, c] of Object.entries(sau.tn)) if (truoc.tn[ma] !== c) tn[ma] = c;
-	const tl: Record<string, { do_dai: number; bam: string }> = {};
-	for (const [ma, t] of Object.entries(sau.tl))
-		if (truoc.tl[ma] !== t) tl[ma] = { do_dai: t.length, bam: (await sha256Hex(t)).slice(0, 8) };
-	const xoa = [...Object.keys(truoc.tn), ...Object.keys(truoc.tl)].filter((ma) => !(ma in sau.tn) && !(ma in sau.tl));
-	if (!Object.keys(tn).length && !Object.keys(tl).length && !xoa.length) return null;
-	return { ...(Object.keys(tn).length && { tn }), ...(Object.keys(tl).length && { tl }), ...(xoa.length && { xoa }) };
 }
 
 /** Ghi một nhóm sự kiện (và cập nhật `may_cuoi` nếu có `mayMoi`) trong một batch. Lỗi chỉ được ghi log, không ném ra. */

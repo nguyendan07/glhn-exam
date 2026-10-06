@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chamTN, taoDe, thoiGian, thuTuLuaChon, type CauHoi } from './exam';
+import { baiNopThanhChu, chamTN, taoDe, thoiGian, thuTuLuaChon, type CauHoi } from './exam';
 
 const tn = (ma: string, nhom: string, dap_an = 0): CauHoi => ({
 	ma, loai: 'TN', nhom, noi_dung: ma, lua_chon: JSON.stringify(['A', 'B', 'C', 'D', 'E', 'F']), dap_an, diem: 1
@@ -132,5 +132,31 @@ describe('thời gian', () => {
 	});
 	it('quá T + dung sai thì trễ', () => {
 		expect(thoiGian(s, s + 660_001, T, tol)).toMatchObject({ duocNop: true, tre: true, conLaiMs: 0 });
+	});
+});
+
+describe('bài đã nộp thành chữ (cho Google Sheet)', () => {
+	const q = (ma: string, lc: string[], dap_an: number, diem = 1): CauHoi => ({ ma, loai: 'TN', nhom: 'n', noi_dung: `Hỏi ${ma}?`, lua_chon: JSON.stringify(lc), dap_an, diem });
+	const dk: CauHoi = { ma: 'D1', loai: 'DK', nhom: 'n', noi_dung: 'Điền ____', lua_chon: null, dap_an: null, diem: 2 };
+	const ch = new Map([['A', q('A', ['x', 'y', 'z'], 2)], ['B', q('B', ['p', 'q', 'r'], 0)], ['C', q('C', ['m', 'n'], 1)], ['D1', dk]]);
+
+	it('theo đúng thứ tự và chữ cái học viên thấy: đúng, sai (kèm đáp án đúng), bỏ trống, điền chỗ trống', () => {
+		const de = [{ ma: 'A', thu_tu: [2, 0, 1] }, { ma: 'B', thu_tu: [1, 2, 0] }, { ma: 'C', thu_tu: [0, 1] }, { ma: 'D1' }];
+		// A: hiển thị z,x,y → chọn A (z) đúng; B: hiển thị q,r,p → chọn B (r) sai, đúng là C (p); C: bỏ trống
+		expect(baiNopThanhChu(de, ch, { A: 0, B: 1 }, { D1: 'Bêlem' })).toBe(
+			[
+				'Câu 1 [A] (1 điểm): Hỏi A?\n  Chọn: A. z → ĐÚNG',
+				'Câu 2 [B] (1 điểm): Hỏi B?\n  Chọn: B. r → SAI (đáp án đúng: C. p)',
+				'Câu 3 [C] (1 điểm): Hỏi C?\n  Không trả lời (đáp án đúng: B. n)',
+				'Câu 4 [D1] (2 điểm): Điền ____\n  Trả lời: Bêlem'
+			].join('\n\n')
+		);
+		expect(baiNopThanhChu([{ ma: 'D1' }], ch, {}, {})).toBe('Câu 1 [D1] (2 điểm): Điền ____\n  Không trả lời');
+	});
+
+	it('cắt bớt khi vượt giới hạn một ô Google Sheet (50.000 ký tự)', () => {
+		const s = baiNopThanhChu([{ ma: 'D1' }], ch, {}, { D1: 'x'.repeat(60_000) });
+		expect(s.length).toBeLessThan(50_000);
+		expect(s).toMatch(/đã cắt bớt/);
 	});
 });

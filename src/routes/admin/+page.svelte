@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { trinhDuyet } from '#lib/trinh-duyet.ts';
 	type Viec = 'import' | 'resync';
 	type Kq = { kieu: 'ok' | 'loi' | 'xung_dot'; tieuDe: string; dong: string[]; canhBao: string[] };
 
@@ -39,21 +40,12 @@
 
 	// --- Nhật ký bài thi của một học viên ---
 	type SuKien = { luc: number; su_kien: string; chi_tiet: any; may: any };
-	type NhatKy = { luot: any; su_kien: SuKien[]; bai_thi: any[] };
+	type NhatKy = { luot: any; su_kien: SuKien[] };
 	let nk = $state<NhatKy | null>(null);
 
 	const gio = (ms: number | null) =>
 		ms ? new Date(ms).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) : '—';
-	const chuCai = (i: number) => String.fromCharCode(65 + i);
-	// Rút gọn User-Agent thành "Safari · iPad" cho dễ đọc; bản gốc vẫn có trong tải JSON.
-	function trinhDuyet(ua?: string) {
-		if (!ua) return '?';
-		const tt = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Trình duyệt khác';
-		const hdh = /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '?';
-		return `${tt} · ${hdh}`;
-	}
 	const viTri = (m: any) => [m.thanh_pho, m.vung !== m.thanh_pho ? m.vung : '', m.quoc_gia].filter(Boolean).join(', ') || 'không rõ vị trí';
-	const sttCau = (ma: string) => nk?.bai_thi.find((c) => c.ma === ma)?.stt ?? ma;
 
 	function moTa(e: SuKien): string {
 		const c = e.chi_tiet ?? {};
@@ -61,17 +53,9 @@
 			case 'bat_dau': return 'Bắt đầu làm bài';
 			case 'tiep_tuc': return c.sau_mo_khoa ? 'Vào lại bài thi (sau khi giám thị mở khóa)' : 'Vào lại bài thi';
 			case 'tu_choi': return c.ly_do === 'da_nop' ? 'Bị chặn: có người thử vào lượt thi đã nộp' : 'Bị chặn: có thiết bị khác thử vào lượt đang thi';
-			case 'luu': {
-				const p = [
-					...Object.entries(c.tn ?? {}).map(([ma, i]) => `câu ${sttCau(ma)} chọn ${chuCai(i as number)}`),
-					...Object.entries(c.tl ?? {}).map(([ma, t]: [string, any]) => `câu ${sttCau(ma)} viết ${t.do_dai} ký tự (mã ${t.bam})`),
-					...(c.xoa ?? []).map((ma: string) => `câu ${sttCau(ma)} xóa trắng`)
-				];
-				return 'Lưu: ' + p.join('; ');
-			}
 			case 'roi_man_hinh': return `Rời màn hình ${c.giay} giây`;
 			case 'doi_may': return 'Máy hoặc địa chỉ IP thay đổi';
-			case 'nop': return `Nộp bài${c.nop_tre ? ' (TRỄ)' : ''}, điểm trắc nghiệm ${c.diem_tn}${c.bo_qua ? '. Câu trả lời nộp muộn không được chấm: ' + moTa({ ...e, su_kien: 'luu', chi_tiet: c.bo_qua }).slice(5) : ''}`;
+			case 'nop': return `Nộp bài${c.nop_tre ? ' (TRỄ)' : ''}, điểm trắc nghiệm ${c.diem_tn}`;
 			case 'mo_khoa': return 'Giám thị mở khóa lượt thi';
 			default: return e.su_kien;
 		}
@@ -240,7 +224,7 @@
 			<p class="text-sm opacity-85">
 				Dùng khi học viên bị văng ra và không vào lại được (báo "đã có lượt thi") vì mất phiên trên máy: xóa dữ liệu trình duyệt, chế độ riêng
 				tư, đổi máy. Sau khi mở khóa, học viên tìm và chọn lại tên của mình để làm tiếp, đồng hồ vẫn chạy từ lúc bắt đầu.
-				<b>Xem nhật ký</b> cho thấy diễn biến làm bài, địa chỉ IP, vị trí ước tính, trình duyệt và các lần rời màn hình để đối chiếu khi cần.
+				<b>Xem nhật ký</b> cho thấy diễn biến (vào lại, rời màn hình, đổi máy), địa chỉ IP, vị trí ước tính và trình duyệt để đối chiếu khi cần.
 			</p>
 			<div class="fieldset">
 				<label class="fieldset-legend" for="tim-mo-khoa">Tên học viên</label>
@@ -313,29 +297,7 @@
 							{/each}
 						</ol>
 					</div>
-
-					<details>
-						<summary class="cursor-pointer font-semibold">Bài làm đúng như học viên thấy ({nk.bai_thi.length} câu)</summary>
-						<ol class="mt-2 space-y-3 text-sm">
-							{#each nk.bai_thi as c (c.ma)}
-								<li>
-									<p class="font-semibold">Câu {c.stt} ({c.diem} điểm): {c.noi_dung}</p>
-									{#if c.lua_chon}
-										<ul class="ml-4">
-											{#each c.lua_chon as t, i (i)}
-												<li class={[c.da_chon === i && (c.dung ? 'text-success font-semibold' : 'text-error font-semibold')]}>
-													{c.da_chon === i ? '●' : '○'} {chuCai(i)}. {t}{i === c.dap_an_dung ? ' ✓ đáp án đúng' : ''}
-												</li>
-											{/each}
-										</ul>
-										{#if c.da_chon === null}<p class="ml-4 opacity-85">(không trả lời)</p>{/if}
-									{:else}
-										<p class="ml-4 whitespace-pre-wrap">{c.tra_loi ?? '(không trả lời)'}</p>
-									{/if}
-								</li>
-							{/each}
-						</ol>
-					</details>
+					<p class="text-sm opacity-85">Bài làm đã nộp xem ở Google Sheet, tab KetQua, cột "Bài đã nộp".</p>
 				</section>
 			{/if}
 		</div>

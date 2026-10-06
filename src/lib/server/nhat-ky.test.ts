@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { moKhoa, xemNhatKy } from './admin';
-import { deltaBaiLam, mayTuYeuCau, thongTinMay, type May } from './nhat-ky';
+import { mayTuYeuCau, thongTinMay, type May } from './nhat-ky';
 import { d1Test } from './testing/d1';
 import { batDau, luuBai, nopBai, timLuotTheoToken } from './thi';
 
@@ -40,37 +40,17 @@ it('thongTinMay: IP, vị trí Cloudflare (request.cf) và trình duyệt; cắt
 	expect(mayTuYeuCau(new Request('https://x/'), () => { throw new Error('không có IP'); })).toEqual({ ip: '' });
 });
 
-it('deltaBaiLam: chỉ các đáp án thay đổi; tự luận chỉ ghi độ dài + mã băm, không chép nội dung', async () => {
-	expect(await deltaBaiLam({ tn: { a: 1 }, tl: {} }, { tn: { a: 1 }, tl: {} })).toBeNull();
-	const d = await deltaBaiLam({ tn: { a: 1, b: 0 }, tl: { t: 'cũ' } }, { tn: { a: 1, b: 2 }, tl: { t: 'bài viết mới', u: 'x' } });
-	expect(d).toMatchObject({ tn: { b: 2 }, tl: { t: { do_dai: 12 }, u: { do_dai: 1 } } });
-	expect((d as any).tl.t.bam).toMatch(/^[0-9a-f]{8}$/);
-	expect(JSON.stringify(d)).not.toContain('bài viết mới');
-	expect(await deltaBaiLam({ tn: { a: 1 }, tl: { t: 'x' } }, { tn: {}, tl: {} })).toEqual({ xoa: ['a', 't'] });
-});
-
 it('bắt đầu: ghi sự kiện bat_dau kèm IP/vị trí/trình duyệt và nhớ máy hiện tại', async () => {
 	const { token } = await vaoThi();
 	expect(await sk()).toEqual([{ su_kien: 'bat_dau', chi_tiet: { so_cau: 14 }, may: mayA }]);
 	expect((await timLuotTheoToken(db, token))!.may_cuoi).toBe(JSON.stringify(mayA));
 });
 
-it('lưu: chỉ ghi khi có thay đổi, chỉ ghi phần thay đổi, không lặp lại thông tin máy', async () => {
+it('lưu bài không ghi nhật ký (bài làm chỉ được ghi một lần, bản đã nộp, vào Google Sheet)', async () => {
 	const { token, tn, tl } = await vaoThi();
-	const [c1, c2] = tn;
-	await luuBai(db, token, { dap_an_tn: { [c1.ma]: 1 } }, t0 + 1000, mayA);
-	await luuBai(db, token, { dap_an_tn: { [c1.ma]: 1 } }, t0 + 2000, mayA); // không đổi → không ghi
-	await luuBai(db, token, { dap_an_tn: { [c1.ma]: 1, [c2.ma]: 3 } }, t0 + 3000, mayA);
-	await luuBai(db, token, { dap_an_tn: { [c1.ma]: 2, [c2.ma]: 3 }, tu_luan: { [tl[0].ma]: 'Hôn nhân là giao ước thiêng liêng' } }, t0 + 4000, mayA);
-	const ev = (await sk()).slice(1);
-	expect(ev.map((e) => e.su_kien)).toEqual(['luu', 'luu', 'luu']);
-	expect(ev.map((e) => e.chi_tiet)).toEqual([
-		{ tn: { [c1.ma]: 1 } },
-		{ tn: { [c2.ma]: 3 } },
-		{ tn: { [c1.ma]: 2 }, tl: { [tl[0].ma]: { do_dai: 33, bam: expect.stringMatching(/^[0-9a-f]{8}$/) } } }
-	]);
-	expect(ev.every((e) => e.may === null)).toBe(true); // máy không đổi → không lặp lại
-	expect(JSON.stringify(await sk())).not.toContain('giao ước');
+	await luuBai(db, token, { dap_an_tn: { [tn[0].ma]: 1 }, tu_luan: { [tl[0].ma]: 'Hôn nhân là giao ước' } }, t0 + 1000, mayA);
+	await luuBai(db, token, { dap_an_tn: { [tn[0].ma]: 2 } }, t0 + 2000, mayA);
+	expect(await tenSk()).toEqual(['bat_dau']);
 });
 
 it('rời màn hình: ghi số giây từng lần, bỏ giá trị không hợp lệ, tối đa 50 lần mỗi lần gửi', async () => {
@@ -86,12 +66,12 @@ it('rời màn hình: ghi số giây từng lần, bỏ giá trị không hợp 
 });
 
 it('đổi máy/IP giữa chừng: ghi doi_may (hoặc gắn vào sự kiện đang ghi) và cập nhật máy hiện tại', async () => {
-	const { token, tn } = await vaoThi();
+	const { token } = await vaoThi();
 	await luuBai(db, token, {}, t0 + 1000, mayB); // chỉ đổi IP
 	await luuBai(db, token, {}, t0 + 2000, mayB); // vẫn máy B → không ghi thêm
-	await luuBai(db, token, { dap_an_tn: { [tn[0].ma]: 0 } }, t0 + 3000, mayA); // quay lại máy A cùng lúc đổi đáp án
+	await luuBai(db, token, { roi: [4] }, t0 + 3000, mayA); // quay lại máy A cùng lúc có lần rời màn hình
 	const ev = (await sk()).slice(1);
-	expect(ev.map((e) => e.su_kien)).toEqual(['doi_may', 'luu']);
+	expect(ev.map((e) => e.su_kien)).toEqual(['doi_may', 'roi_man_hinh']);
 	expect(ev[0].may).toEqual(mayB);
 	expect(ev[1].may).toEqual(mayA);
 	expect((await timLuotTheoToken(db, token))!.may_cuoi).toBe(JSON.stringify(mayA));
@@ -119,24 +99,24 @@ it('giám thị mở khóa rồi học viên vào lại từ máy khác: ghi mo_
 	expect((await sk()).slice(1)).toMatchObject([{ su_kien: 'mo_khoa' }, { su_kien: 'tiep_tuc', chi_tiet: { sau_mo_khoa: true }, may: mayB }]);
 });
 
-it('nộp bài: ghi thay đổi cuối, các lần rời màn hình và sự kiện nop kèm điểm trắc nghiệm', async () => {
+it('nộp bài: ghi các lần rời màn hình chưa gửi và sự kiện nop kèm điểm trắc nghiệm (không ghi nội dung bài)', async () => {
 	const { token, tn } = await vaoThi();
 	await nopBai(db, token, { dap_an_tn: { [tn[0].ma]: 2 }, roi: [7] }, t0 + T / 2, mayA);
 	const ev = (await sk()).slice(1);
-	expect(ev.map((e) => e.su_kien)).toEqual(['luu', 'roi_man_hinh', 'nop']);
-	expect(ev[2]).toMatchObject({ chi_tiet: { nop_tre: false, diem_tn: expect.any(Number) }, may: mayA });
+	expect(ev.map((e) => e.su_kien)).toEqual(['roi_man_hinh', 'nop']);
+	expect(JSON.stringify(ev)).not.toContain(tn[0].ma);
+	expect(ev[1]).toMatchObject({ chi_tiet: { nop_tre: false, diem_tn: expect.any(Number) }, may: mayA });
 	const n = (await tenSk()).length;
 	await nopBai(db, token, undefined, t0 + T / 2 + 1000, mayA); // nộp lặp: không ghi thêm
 	expect(await tenSk()).toHaveLength(n);
 });
 
-it('nộp quá hạn: câu trả lời nộp muộn không được chấm nhưng được ghi lại trong nhật ký (bo_qua)', async () => {
+it('nộp quá hạn: nop_tre được ghi, câu trả lời nộp muộn không được nhận', async () => {
 	const { token, tn } = await vaoThi();
 	await luuBai(db, token, { dap_an_tn: { [tn[0].ma]: 1 } }, t0 + 1000, mayA);
 	await nopBai(db, token, { dap_an_tn: { [tn[0].ma]: 1, [tn[1].ma]: 2 } }, t0 + T + 61_000, mayA);
-	const nop = (await sk()).at(-1)!;
-	expect(nop).toMatchObject({ su_kien: 'nop', chi_tiet: { nop_tre: true, bo_qua: { tn: { [tn[1].ma]: 2 } } } });
-	expect(JSON.parse((await db.prepare('SELECT dap_an_tn FROM bai_lam').first<any>()).dap_an_tn)).toEqual({ [tn[0].ma]: 1 }); // không được nhận
+	expect((await sk()).at(-1)).toMatchObject({ su_kien: 'nop', chi_tiet: { nop_tre: true } });
+	expect(JSON.parse((await db.prepare('SELECT dap_an_tn FROM bai_lam').first<any>()).dap_an_tn)).toEqual({ [tn[0].ma]: 1 });
 });
 
 it('lỗi khi ghi nhật ký không làm hỏng bài thi (bắt đầu, lưu, nộp vẫn thành công)', async () => {
@@ -148,13 +128,9 @@ it('lỗi khi ghi nhật ký không làm hỏng bài thi (bắt đầu, lưu, n�
 	expect(JSON.parse((await db.prepare('SELECT dap_an_tn FROM bai_lam').first<any>()).dap_an_tn)).toEqual({ [tn[0].ma]: 1 });
 });
 
-it('xemNhatKy: lượt thi, dòng thời gian và bài làm đúng như học viên thấy (đáp án chọn, đúng/sai)', async () => {
-	const { token, de, tn, tl } = await vaoThi();
-	const q = async (ma: string) => (await db.prepare('SELECT dap_an, lua_chon FROM cau_hoi WHERE ma = ?').bind(ma).first<any>());
-	const [m1, m2] = tn;
-	const dung1 = m1.thu_tu!.indexOf((await q(m1.ma)).dap_an);
-	const sai2 = (m2.thu_tu!.indexOf((await q(m2.ma)).dap_an) + 1) % 4;
-	await luuBai(db, token, { dap_an_tn: { [m1.ma]: dung1, [m2.ma]: sai2 }, tu_luan: { [tl[0].ma]: 'Trả lời của tôi' }, roi: [9] }, t0 + 1000, mayA);
+it('xemNhatKy: thông tin lượt thi và dòng thời gian theo thứ tự, kèm thông tin máy', async () => {
+	const { token } = await vaoThi();
+	await luuBai(db, token, { roi: [9] }, t0 + 1000, mayA);
 	await nopBai(db, token, undefined, t0 + T / 2, mayA);
 
 	expect((await xemNhatKy(db, { hoc_vien_id: 99 })).status).toBe(404);
@@ -162,15 +138,8 @@ it('xemNhatKy: lượt thi, dòng thời gian và bài làm đúng như học vi
 	const r = await xemNhatKy(db, { hoc_vien_id: 1 });
 	expect(r.status).toBe(200);
 	const b: any = r.body;
-	expect(b.luot).toMatchObject({ ten: 'Phêrô Nguyễn Văn An', bat_dau: t0, nop: t0 + T / 2, trang_thai: 'da_nop', nop_tre: false, so_lan_roi_tab: 0 });
-	expect(b.su_kien.map((e: any) => e.su_kien)).toEqual(['bat_dau', 'luu', 'roi_man_hinh', 'nop']);
+	expect(b.luot).toMatchObject({ ten: 'Phêrô Nguyễn Văn An', bat_dau: t0, nop: t0 + T / 2, trang_thai: 'da_nop', nop_tre: false });
+	expect(b.su_kien.map((e: any) => e.su_kien)).toEqual(['bat_dau', 'roi_man_hinh', 'nop']);
 	expect(b.su_kien[0].may).toEqual(mayA);
-	expect(b.bai_thi).toHaveLength(de.length);
-	const c1 = b.bai_thi.find((x: any) => x.ma === m1.ma);
-	const c2 = b.bai_thi.find((x: any) => x.ma === m2.ma);
-	expect(c1).toMatchObject({ da_chon: dung1, dung: true, dap_an_dung: dung1 });
-	expect(c1.lua_chon).toHaveLength(4);
-	expect(c2).toMatchObject({ da_chon: sai2, dung: false });
-	expect(b.bai_thi.find((x: any) => x.ma === tl[0].ma)).toMatchObject({ tra_loi: 'Trả lời của tôi', lua_chon: null });
-	expect(b.bai_thi.filter((x: any) => x.loai === 'TN' && x.da_chon === null && x.dung === null).length).toBe(tn.length - 2);
+	expect(b.bai_thi).toBeUndefined(); // bài đã nộp xem ở Google Sheet
 });

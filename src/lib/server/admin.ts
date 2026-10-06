@@ -2,7 +2,7 @@ import { lamSach } from './normalize';
 import { ghiNhatKy } from './nhat-ky';
 import { parseHocVien } from './hoc-vien';
 import { docVung, ghiVung, TAB_KET_QUA, TIEU_DE_KET_QUA, type SheetEnv } from './sheets';
-import { docCauHoi, sha256Hex } from './thi';
+import { sha256Hex } from './thi';
 
 /** Header `Authorization: Bearer <ADMIN_TOKEN>`. So sánh qua SHA-256 để thời gian so sánh không phụ thuộc nội dung. */
 export async function laAdmin(request: Request, adminToken: string | undefined): Promise<boolean> {
@@ -95,8 +95,8 @@ export async function moKhoa(db: D1Database, body: unknown, now = Date.now()) {
 }
 
 /**
- * Nhật ký của một lượt thi để giám thị đối chiếu: thông tin lượt thi, dòng thời gian sự kiện (kèm IP/vị trí/trình duyệt khi có đổi)
- * và bài làm đúng như học viên đã thấy (thứ tự đáp án đã xáo, đáp án đã chọn, đáp án đúng). Chỉ gọi sau khi đã qua kiểm tra token.
+ * Nhật ký của một lượt thi để giám thị đối chiếu: thông tin lượt thi và dòng thời gian sự kiện (kèm IP/vị trí/trình duyệt khi có đổi).
+ * Bài làm đã nộp nằm ở Google Sheet (cột "Bài đã nộp"), không lưu từng lần lưu. Chỉ gọi sau khi đã qua kiểm tra token.
  */
 export async function xemNhatKy(db: D1Database, body: unknown) {
 	const id = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
@@ -104,7 +104,7 @@ export async function xemNhatKy(db: D1Database, body: unknown) {
 	const l = await db
 		.prepare(
 			`SELECT l.id, l.ho_ten, l.ten_thanh, l.giao_xu, l.giao_phan, l.started_at, l.submitted_at, l.trang_thai, l.nop_tre,
-			l.so_lan_roi_tab, l.de_thi, b.dap_an_tn, b.tu_luan, b.diem_tn
+			l.so_lan_roi_tab, b.diem_tn
 			FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id WHERE l.hoc_vien_id = ?`
 		)
 		.bind(id)
@@ -121,10 +121,6 @@ export async function xemNhatKy(db: D1Database, body: unknown) {
 			return null;
 		}
 	};
-	const de: { ma: string; thu_tu?: number[] }[] = JSON.parse(l.de_thi);
-	const ch = await docCauHoi(db, de.map((m) => m.ma));
-	const tn: Record<string, number> = JSON.parse(l.dap_an_tn);
-	const tl: Record<string, string> = JSON.parse(l.tu_luan);
 	return {
 		status: 200,
 		body: {
@@ -133,21 +129,7 @@ export async function xemNhatKy(db: D1Database, body: unknown) {
 				giao_xu: l.giao_xu, giao_phan: l.giao_phan, bat_dau: l.started_at, nop: l.submitted_at,
 				trang_thai: l.trang_thai, nop_tre: l.nop_tre === 1, so_lan_roi_tab: l.so_lan_roi_tab, diem_tn: l.diem_tn
 			},
-			su_kien: results.map((e) => ({ luc: e.luc, su_kien: e.su_kien, chi_tiet: thu(e.chi_tiet), may: thu(e.may) })),
-			bai_thi: de.flatMap((m, i) => {
-				const q = ch.get(m.ma);
-				if (!q) return [];
-				const goc: string[] | null = q.lua_chon ? JSON.parse(q.lua_chon) : null;
-				const chon = m.thu_tu ? (tn[m.ma] ?? null) : null;
-				return [{
-					stt: i + 1, ma: q.ma, phan: q.nhom, loai: q.loai, diem: q.diem, noi_dung: q.noi_dung,
-					lua_chon: m.thu_tu && goc ? m.thu_tu.map((j) => goc[j]) : null,
-					da_chon: chon,
-					dap_an_dung: m.thu_tu ? m.thu_tu.indexOf(q.dap_an as number) : null,
-					dung: m.thu_tu && chon !== null ? m.thu_tu[chon] === q.dap_an : null,
-					tra_loi: m.thu_tu ? null : (tl[m.ma] ?? null)
-				}];
-			})
+			su_kien: results.map((e) => ({ luc: e.luc, su_kien: e.su_kien, chi_tiet: thu(e.chi_tiet), may: thu(e.may) }))
 		}
 	};
 }
@@ -266,9 +248,9 @@ export async function nhapTuSheet(db: D1Database, env: SheetEnv, force: boolean)
 		.all<{ nhom: string; n: number }>();
 	for (const t of thua) canhBao.push(`Nhóm "${t.nhom}" có ${t.n} câu nhưng không nằm trong tab PhanThi nên sẽ không bao giờ được bốc.`);
 
-	const tieuDe = await docTab(env, `${TAB_KET_QUA}!A1:M1`);
+	const tieuDe = await docTab(env, `${TAB_KET_QUA}!A1:Q1`);
 	if (!tieuDe) canhBao.push(`Chưa có tab ${TAB_KET_QUA}: hãy tạo tab này để nhận kết quả.`);
-	else if (!tieuDe.length) await ghiVung(env, `${TAB_KET_QUA}!A1:M1`, [TIEU_DE_KET_QUA]);
+	else if (!tieuDe.length) await ghiVung(env, `${TAB_KET_QUA}!A1:Q1`, [TIEU_DE_KET_QUA]);
 
 	return {
 		status: 200,

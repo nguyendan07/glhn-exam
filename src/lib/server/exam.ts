@@ -96,3 +96,33 @@ export function thoiGian(startedAt: number, now: number, thoiLuongGiay: number, 
 		tre: daLam > T + dungSaiGiay * 1000
 	};
 }
+
+const GIOI_HAN_O = 48_000; // Google Sheets: tối đa 50.000 ký tự mỗi ô
+
+/**
+ * Bài đã nộp dưới dạng chữ (để lưu một ô trong Google Sheet): mỗi câu theo đúng thứ tự học viên thấy, đáp án đã chọn (theo chữ cái
+ * hiển thị), đúng/sai kèm đáp án đúng với câu trắc nghiệm, và câu trả lời của câu điền chỗ trống/tự luận.
+ */
+export function baiNopThanhChu(
+	de: readonly MucDe[],
+	cauHoi: ReadonlyMap<string, CauHoi>,
+	tn: Record<string, number>,
+	tl: Record<string, string>
+): string {
+	const chu = (i: number) => String.fromCharCode(65 + i);
+	const khoi = de.flatMap((m, i) => {
+		const q = cauHoi.get(m.ma);
+		if (!q) return [];
+		const dau = `Câu ${i + 1} [${q.ma}] (${q.diem} điểm): ${q.noi_dung}`;
+		if (!m.thu_tu) return [`${dau}\n  ${tl[m.ma]?.trim() ? `Trả lời: ${tl[m.ma]}` : 'Không trả lời'}`];
+		const goc: string[] = JSON.parse(q.lua_chon!);
+		const hienThi = m.thu_tu.map((j) => goc[j]);
+		const dung = m.thu_tu.indexOf(q.dap_an as number);
+		const c = tn[m.ma];
+		const dapAnDung = `đáp án đúng: ${chu(dung)}. ${hienThi[dung]}`;
+		if (c === undefined) return [`${dau}\n  Không trả lời (${dapAnDung})`];
+		return [`${dau}\n  Chọn: ${chu(c)}. ${hienThi[c]} → ${c === dung ? 'ĐÚNG' : `SAI (${dapAnDung})`}`];
+	});
+	const s = khoi.join('\n\n');
+	return s.length > GIOI_HAN_O ? s.slice(0, GIOI_HAN_O) + '\n… (đã cắt bớt vì vượt giới hạn của một ô Google Sheet)' : s;
+}

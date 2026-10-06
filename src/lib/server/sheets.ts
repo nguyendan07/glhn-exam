@@ -1,12 +1,14 @@
 // Client Google Sheets tối giản cho Workers: ký JWT service account bằng Web Crypto, gọi REST API bằng fetch.
 // Không import gì của SvelteKit để Worker cron dùng lại được.
+import { baiNopThanhChu, type CauHoi, type MucDe } from './exam';
+import { trinhDuyet } from '../trinh-duyet';
 
 export type SheetEnv = { GOOGLE_SA_EMAIL: string; GOOGLE_SA_PRIVATE_KEY: string; SHEET_ID: string };
 
 export const TAB_KET_QUA = 'KetQua';
 export const TIEU_DE_KET_QUA = [
 	'Mã lượt', 'Tên Thánh', 'Họ và tên', 'Giáo xứ', 'Giáo phận', 'Giờ bắt đầu', 'Giờ nộp',
-	'Nộp trễ', 'Số lần rời tab', 'Điểm TN', 'Bài tự luận', 'Điểm TL', 'Tổng điểm'
+	'Nộp trễ', 'Số lần rời tab', 'Điểm TN', 'Bài tự luận', 'Điểm TL', 'Tổng điểm', 'IP', 'Vị trí', 'Trình duyệt', 'Bài đã nộp'
 ];
 
 /** Chống formula injection: chuỗi bắt đầu bằng = + - @ được thêm ' phía trước (Sheets hiểu là văn bản). */
@@ -121,18 +123,32 @@ type LuotSync = {
 	so_lan_roi_tab: number;
 	diem_tn: number | null;
 	tu_luan: string;
+	de_thi: string;
+	dap_an_tn: string;
+	may_cuoi: string | null;
 	sheet_row: number | null;
 };
 
 const SELECT_SYNC = `SELECT l.id, l.ten_thanh, l.ho_ten, l.giao_xu, l.giao_phan, l.started_at, l.submitted_at,
-	l.nop_tre, l.so_lan_roi_tab, l.sheet_row, b.diem_tn, b.tu_luan
+	l.nop_tre, l.so_lan_roi_tab, l.sheet_row, l.de_thi, l.may_cuoi, b.diem_tn, b.tu_luan, b.dap_an_tn
 	FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id`;
 
 const gio = (ms: number) =>
 	"'" + new Date(ms).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
 
-/** Một hàng của tab KetQua (cột A..M: Điểm TN là J, Điểm TL là L). Mọi chuỗi do học viên nhập đều qua escapeCell. */
-export function hangKetQua(l: LuotSync): (string | number)[] {
+/** Toàn bộ ngân hàng câu hỏi (cần để dựng "Bài đã nộp"; chỉ có ~vài chục câu nên đọc một lần cho cả đợt đồng bộ). */
+async function docNganHang(db: D1Database) {
+	const { results } = await db.prepare('SELECT * FROM cau_hoi').all<CauHoi>();
+	return new Map(results.map((q) => [q.ma, q]));
+}
+
+/**
+ * Một hàng của tab KetQua: A..M như cũ (Điểm TN là J, Điểm TL là L), N IP, O Vị trí, P Trình duyệt (của máy ở sự kiện cuối),
+ * Q Bài đã nộp (toàn bộ bài như học viên đã thấy). Mọi chuỗi do học viên nhập đều qua escapeCell.
+ */
+export function hangKetQua(l: LuotSync, cauHoi: ReadonlyMap<string, CauHoi>): (string | number)[] {
+	const may = l.may_cuoi ? (JSON.parse(l.may_cuoi) as Record<string, string | undefined>) : {};
+	const viTri = [may.thanh_pho, may.vung !== may.thanh_pho ? may.vung : '', may.quoc_gia].filter(Boolean).join(', ');
 	const tl = Object.entries(JSON.parse(l.tu_luan) as Record<string, string>)
 		.map(([ma, s]) => `[${ma}]\n${s}`)
 		.join('\n\n');
@@ -149,7 +165,11 @@ export function hangKetQua(l: LuotSync): (string | number)[] {
 		l.diem_tn ?? 0,
 		escapeCell(tl),
 		'', // Điểm TL: giáo viên nhập
-		'=N(INDIRECT("J"&ROW()))+N(INDIRECT("L"&ROW()))'
+		'=N(INDIRECT("J"&ROW()))+N(INDIRECT("L"&ROW()))',
+		escapeCell(may.ip ?? ''),
+		escapeCell(viTri),
+		escapeCell(may.ua ? `${trinhDuyet(may.ua)} — ${may.ua}` : ''),
+		escapeCell(baiNopThanhChu(JSON.parse(l.de_thi) as MucDe[], cauHoi, JSON.parse(l.dap_an_tn), JSON.parse(l.tu_luan)))
 	];
 }
 
@@ -162,7 +182,7 @@ export async function dongBoMot(db: D1Database, env: Partial<SheetEnv>, id: stri
 	try {
 		const l = await db.prepare(`${SELECT_SYNC} WHERE l.id = ? AND l.sync_pending = 1 AND l.trang_thai = 'da_nop'`).bind(id).first<LuotSync>();
 		if (!l) return;
-		const row = await themHang(env, TAB_KET_QUA, [hangKetQua(l)]);
+		const row = await themHang(env, TAB_KET_QUA, [hangKetQua(l, await docNganHang(db))]);
 		await db.prepare('UPDATE luot_thi SET sync_pending = 0, sheet_row = ? WHERE id = ?').bind(row, id).run();
 	} catch (e) {
 		console.error('Đồng bộ Sheets lỗi, để resync xử lý:', id, e);
@@ -181,6 +201,7 @@ export async function dongBoLai(db: D1Database, env: Partial<SheetEnv>, now = Da
 		.all<LuotSync>();
 	if (!results.length) return { da_dong_bo: 0 };
 
+	const cauHoi = await docNganHang(db);
 	const cotA = await docVung(env, `${TAB_KET_QUA}!A:A`);
 	const daCo = new Map(cotA.map((h, i) => [h[0], i + 1]));
 	const capNhat: { range: string; values: unknown[][] }[] = [];
@@ -189,13 +210,13 @@ export async function dongBoLai(db: D1Database, env: Partial<SheetEnv>, now = Da
 	for (const l of results) {
 		const row = daCo.get(l.id);
 		if (row) {
-			capNhat.push({ range: `${TAB_KET_QUA}!A${row}:K${row}`, values: [hangKetQua(l).slice(0, 11)] });
+			capNhat.push({ range: `${TAB_KET_QUA}!A${row}:K${row}`, values: [hangKetQua(l, cauHoi).slice(0, 11)] });
 			xong.push([l.id, row]);
 		} else them.push(l);
 	}
 	if (capNhat.length) await api(env, 'POST', '/values:batchUpdate', { valueInputOption: 'USER_ENTERED', data: capNhat });
 	if (them.length) {
-		const dau = await themHang(env, TAB_KET_QUA, them.map(hangKetQua));
+		const dau = await themHang(env, TAB_KET_QUA, them.map((l) => hangKetQua(l, cauHoi)));
 		them.forEach((l, i) => xong.push([l.id, dau + i]));
 	}
 	await db.batch(xong.map(([id, row]) => db.prepare('UPDATE luot_thi SET sync_pending = 0, sheet_row = ? WHERE id = ?').bind(row, id)));

@@ -119,14 +119,14 @@ for dong in (GOC / 'ds_hoc_vien.csv').read_text(encoding='utf-8-sig').splitlines
 
 # ---- ghi file
 KET_QUA = ['Mã lượt', 'Tên Thánh', 'Họ và tên', 'Giáo xứ', 'Giáo phận', 'Giờ bắt đầu', 'Giờ nộp', 'Nộp trễ', 'Số lần rời tab',
-           'Điểm TN', 'Bài tự luận', 'Điểm TL', 'Tổng điểm']
+           'Điểm TN', 'Bài tự luận', 'Điểm TL', 'Tổng điểm', 'IP', 'Vị trí', 'Trình duyệt', 'Bài đã nộp']
 SHEETS = {
     'CauHoi': (['Mã', 'Loại', 'Nhóm', 'Nội dung', 'Đáp án', 'Điểm', 'Lựa chọn A', 'Lựa chọn B', 'Lựa chọn C', 'Lựa chọn D'], cau_hoi,
                [10, 8, 18, 70, 9, 8, 40, 40, 40, 40]),
     'PhanThi': (['Nhóm', 'Tiêu đề phần', 'Số câu', 'Hướng dẫn', 'Xáo'], phan_thi, [18, 48, 10, 32, 8]),
     'HocVien': (['Tên Thánh', 'Họ và tên', 'Giáo xứ', 'Giáo phận'], hoc_vien, [14, 32, 20, 20]),
     'ThongTin': (['Khóa', 'Nội dung'], thong_tin, [18, 90]),
-    'KetQua': (KET_QUA, [], [38, 12, 28, 18, 18, 20, 20, 9, 10, 9, 60, 9, 11]),
+    'KetQua': (KET_QUA, [], [38, 12, 28, 18, 18, 20, 20, 9, 10, 9, 60, 9, 11, 16, 24, 40, 90]),
 }
 wb = Workbook()
 wb.remove(wb.active)
