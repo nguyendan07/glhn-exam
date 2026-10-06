@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { d1Test } from './testing/d1';
-import { batDau, luuBai, nopBai, timHocVien, timLuotTheoToken, trangThaiThi } from './thi';
+import { batDau, COOKIE_OPTS, luuBai, nopBai, timHocVien, timLuotTheoToken, trangThaiThi } from './thi';
 
 // Học viên mẫu (migrations/0002): 1 Phêrô Nguyễn Văn An · 2 Giuse Nguyễn Văn An · 3 Trần Thị Bình (chưa có tên Thánh)
 // · 4 Maria Lê Thị Cúc · 5 Anrê Phạm Văn Dũng (chưa có giáo xứ/giáo phận)
@@ -44,8 +44,21 @@ describe('tìm kiếm khi gõ', () => {
 	it('đánh dấu da_thi sau khi đã có lượt thi, và không trả dữ liệu nhạy cảm', async () => {
 		await start(3);
 		const [r] = await timHocVien(db, 'tran thi binh');
-		expect(r).toEqual({ id: 3, ten_thanh: '', ho_ten: 'Trần Thị Bình', giao_xu: 'Giáo xứ Đức Bà', giao_phan: 'Sài Gòn', da_thi: true });
+		expect(r).toEqual({ id: 3, ten_thanh: '', ho_ten: 'Trần Thị Bình', giao_xu: 'Giáo xứ Đức Bà', giao_phan: 'Sài Gòn', da_thi: true, tiep_tuc: false });
 		expect((await timHocVien(db, 'le thi cuc'))[0].da_thi).toBe(false);
+	});
+
+	it('tiep_tuc: chỉ true cho lượt thi của chính máy này (cookie khớp) hoặc lượt giám thị đã mở khóa', async () => {
+		const a = await start(3);
+		const b = await start(4);
+		const tim = async (q: string, token?: string) => (await timHocVien(db, q, token))[0];
+		expect(await tim('tran thi binh', a.token)).toMatchObject({ da_thi: true, tiep_tuc: true }); // lượt của mình
+		expect(await tim('tran thi binh')).toMatchObject({ da_thi: true, tiep_tuc: false }); // không cookie
+		expect(await tim('tran thi binh', b.token)).toMatchObject({ da_thi: true, tiep_tuc: false }); // cookie của người khác
+		expect(await tim('tran thi binh', 'rac')).toMatchObject({ da_thi: true, tiep_tuc: false });
+		expect(await tim('nguyen van an', a.token)).toMatchObject({ da_thi: false, tiep_tuc: false }); // chưa thi
+		await db.prepare('UPDATE luot_thi SET token_hash = NULL WHERE hoc_vien_id = 3').run(); // giám thị mở khóa
+		expect(await tim('tran thi binh')).toMatchObject({ da_thi: true, tiep_tuc: true });
 	});
 
 	it('giới hạn số kết quả', async () => {
@@ -53,6 +66,11 @@ describe('tìm kiếm khi gõ', () => {
 			await db.prepare('INSERT INTO hoc_vien_cho_phep (khoa, ho_ten, tim_kiem) VALUES (?, ?, ?)').bind(`k${i}`, `Hoàng ${i}`, `hoang ${i}`).run();
 		expect(await timHocVien(db, 'hoang')).toHaveLength(8);
 	});
+});
+
+it('cookie phiên là SameSite=Lax: strict làm mất phiên khi mở lại bài thi từ liên kết/QR/ứng dụng khác', () => {
+	expect(COOKIE_OPTS).toMatchObject({ sameSite: 'lax', httpOnly: true, path: '/' });
+	expect(COOKIE_OPTS.maxAge).toBeGreaterThanOrEqual(60 * 60 * 24 * 7);
 });
 
 describe('/api/start', () => {

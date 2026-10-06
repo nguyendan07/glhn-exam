@@ -11,7 +11,7 @@
 	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi Giáo Lý Hôn Nhân (2026)';
 	const PHU_DE = '(thời gian làm bài 90 phút)';
 
-	type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string; da_thi: boolean };
+	type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string; da_thi: boolean; tiep_tuc: boolean };
 	const ten = (h: HocVien) => [h.ten_thanh, h.ho_ten].filter(Boolean).join(' ');
 	const noi = (h: HocVien) => [h.giao_xu, h.giao_phan].filter(Boolean).join(', ');
 
@@ -124,7 +124,7 @@
 					<ul class="menu w-full rounded-box border border-base-300 p-1">
 						{#each ds as h (h.id)}
 							<li>
-								{#if h.da_thi}
+								{#if h.da_thi && !h.tiep_tuc}
 									<div class="pointer-events-none flex flex-col items-start">
 										<span class="font-semibold">{ten(h)}</span>
 										{#if noi(h)}<span class="text-sm opacity-85">{noi(h)}</span>{/if}
@@ -135,6 +135,7 @@
 										<span class="flex flex-col items-start text-left">
 											<span class="font-semibold">{ten(h)}</span>
 											{#if noi(h)}<span class="text-sm opacity-85">{noi(h)}</span>{/if}
+											{#if h.da_thi}<span class="text-sm text-primary">Bạn đã bắt đầu bài thi này. Chọn để tiếp tục.</span>{/if}
 										</span>
 									</button>
 								{/if}
@@ -159,17 +160,17 @@
 
 <dialog bind:this={hopXacNhan} class="modal" aria-labelledby="bd-title">
 	<div class="modal-box">
-		<h2 id="bd-title" class="text-xl font-semibold">Bắt đầu làm bài?</h2>
+		<h2 id="bd-title" class="text-xl font-semibold">{chon?.da_thi ? 'Tiếp tục làm bài?' : 'Bắt đầu làm bài?'}</h2>
 		{#if chon}
 			<p class="py-2">
 				Bạn là <b>{ten(chon)}</b>{#if noi(chon)} ({noi(chon)}){/if}?
 			</p>
 		{/if}
-		<p>Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm "Bắt đầu".</p>
+		<p>{chon?.da_thi ? 'Đồng hồ vẫn đang chạy từ lúc bạn bắt đầu.' : 'Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm "Bắt đầu".'}</p>
 		<div class="modal-action">
 			<button class="btn" type="button" onclick={() => hopXacNhan.close()} disabled={dangGui}>Chọn lại</button>
 			<button class="btn btn-primary" type="button" onclick={batDau} disabled={dangGui}>
-				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}Bắt đầu{/if}
+				{#if dangGui}<span class="loading loading-spinner"></span>Đang xử lý...{:else}{chon?.da_thi ? 'Tiếp tục' : 'Bắt đầu'}{/if}
 			</button>
 		</div>
 	</div>

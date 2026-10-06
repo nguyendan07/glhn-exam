@@ -2,10 +2,12 @@ import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe, type Phan } from './e
 import { chuanHoa, GIOI_HAN, lamSachVanBan } from './normalize';
 
 export const COOKIE = 'phien_thi';
+// Lax (không phải strict): strict không gửi cookie khi học viên mở lại bài thi từ liên kết/QR/ứng dụng khác (Zalo, Messenger, Mail...),
+// khiến trang chào tưởng chưa có phiên. Lax vẫn không gửi cookie trong các yêu cầu POST/fetch từ site khác.
 export const COOKIE_OPTS = {
 	path: '/',
 	httpOnly: true,
-	sameSite: 'strict',
+	sameSite: 'lax',
 	maxAge: 60 * 60 * 24 * 30
 } as const;
 
@@ -114,19 +116,24 @@ type KetQuaStart = { res: Response; token?: string };
 type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string };
 
 /** GET /api/tim-kiem: tìm khi đang gõ. Mỗi từ trong ô nhập phải khớp (không phân biệt dấu/hoa thường), tên Thánh có hay không đều được. */
-export async function timHocVien(db: D1Database, q: string) {
+/**
+ * GET /api/tim-kiem. `tiep_tuc` = đã có lượt thi và máy này được phép vào lại: cookie khớp lượt đó, hoặc giám thị đã mở khóa
+ * (token_hash NULL). Dòng đã có lượt thi mà `tiep_tuc` = false thì giao diện không cho chọn.
+ */
+export async function timHocVien(db: D1Database, q: string, token?: string) {
 	const tu = chuanHoa(q.slice(0, 100)).split(' ').filter(Boolean).slice(0, 8);
 	if (tu.join('').length < 2) return [];
 	const dieuKien = tu.map(() => `tim_kiem LIKE ? ESCAPE '\\'`).join(' AND ');
 	const { results } = await db
 		.prepare(
 			`SELECT h.id, h.ten_thanh, h.ho_ten, h.giao_xu, h.giao_phan,
-			EXISTS (SELECT 1 FROM luot_thi l WHERE l.hoc_vien_id = h.id) AS da_thi
+			EXISTS (SELECT 1 FROM luot_thi l WHERE l.hoc_vien_id = h.id) AS da_thi,
+			EXISTS (SELECT 1 FROM luot_thi l WHERE l.hoc_vien_id = h.id AND (l.token_hash IS NULL OR l.token_hash = ?)) AS tiep_tuc
 			FROM hoc_vien_cho_phep h WHERE ${dieuKien} ORDER BY h.tim_kiem, h.id LIMIT 8`
 		)
-		.bind(...tu.map((t) => `%${t.replace(/[\\%_]/g, '\\$&')}%`))
-		.all<HocVien & { da_thi: number }>();
-	return results.map((r) => ({ ...r, da_thi: r.da_thi === 1 }));
+		.bind(token && token.length <= 100 ? await sha256Hex(token) : null, ...tu.map((t) => `%${t.replace(/[\\%_]/g, '\\$&')}%`))
+		.all<HocVien & { da_thi: number; tiep_tuc: number }>();
+	return results.map((r) => ({ ...r, da_thi: r.da_thi === 1, tiep_tuc: r.tiep_tuc === 1 }));
 }
 
 /** POST /api/start { hoc_vien_id }: tạo lượt thi mới hoặc trả lại lượt đang có (cùng thiết bị). */
