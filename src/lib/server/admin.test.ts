@@ -1,5 +1,7 @@
 import { expect, it, vi } from 'vitest';
-import { chayAdmin, laAdmin } from './admin';
+import { chayAdmin, laAdmin, moKhoa } from './admin';
+import { d1Test } from './testing/d1';
+import { batDau, timHocVien, timLuotTheoToken } from './thi';
 
 const TOKEN = 'mot-chuoi-bi-mat-dai-du-16-ky-tu';
 const req = (auth?: string) => new Request('https://x/api/admin/import', { method: 'POST', headers: auth ? { authorization: auth } : {} });
@@ -33,4 +35,28 @@ it('chayAdmin: lỗi bất ngờ thành JSON { error } với status 500 (không 
 	});
 	expect(r.status).toBe(500);
 	expect(await r.json()).toEqual({ error: 'Sheets GET /values/CauHoi 403: caller does not have permission' });
+});
+
+it('moKhoa: đặt token_hash = NULL để học viên vào lại được từ máy khác', async () => {
+	const db = d1Test();
+	const st = await batDau(db, { hoc_vien_id: 4 }, undefined, 0); // Maria Lê Thị Cúc
+	expect(await timLuotTheoToken(db, st.token)).not.toBeNull();
+	expect((await timHocVien(db, 'le thi cuc'))[0]).toMatchObject({ da_thi: true, tiep_tuc: false });
+
+	expect(await moKhoa(db, { hoc_vien_id: 4 })).toEqual({ status: 200, body: { ten: 'Maria Lê Thị Cúc', trang_thai: 'dang_thi' } });
+	expect((await timHocVien(db, 'le thi cuc'))[0]).toMatchObject({ da_thi: true, tiep_tuc: true });
+	expect(await timLuotTheoToken(db, st.token)).toBeNull(); // cookie cũ không còn dùng được
+
+	const may2 = await batDau(db, { hoc_vien_id: 4 }, undefined, 0); // máy mới chọn lại tên
+	expect(may2.res.status).toBe(200);
+	expect(may2.token).toBeTruthy();
+	expect((await timHocVien(db, 'le thi cuc'))[0]).toMatchObject({ tiep_tuc: false }); // khóa lại cho máy mới
+	expect((await batDau(db, { hoc_vien_id: 4 }, undefined, 0)).res.status).toBe(409); // máy thứ ba vẫn bị chặn
+});
+
+it('moKhoa: 400 thiếu mã, 404 khi học viên chưa có lượt thi', async () => {
+	const db = d1Test();
+	expect((await moKhoa(db, {})).status).toBe(400);
+	expect((await moKhoa(db, { hoc_vien_id: '4' })).status).toBe(400);
+	expect((await moKhoa(db, { hoc_vien_id: 4 })).status).toBe(404);
 });

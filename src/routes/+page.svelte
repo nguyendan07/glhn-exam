@@ -163,7 +163,7 @@
 		<h2 id="bd-title" class="text-xl font-semibold">{chon?.da_thi ? 'Tiếp tục làm bài?' : 'Bắt đầu làm bài?'}</h2>
 		{#if chon}
 			<p class="py-2">
-				Bạn là <b>{ten(chon)}</b>{#if noi(chon)} ({noi(chon)}){/if}?
+				Bạn là <b>{ten(chon)}</b>{#if noi(chon)}{' '}({noi(chon)}){/if}?
 			</p>
 		{/if}
 		<p>{chon?.da_thi ? 'Đồng hồ vẫn đang chạy từ lúc bạn bắt đầu.' : 'Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm "Bắt đầu".'}</p>

@@ -29,6 +29,44 @@
 		}
 	}
 
+	// --- Mở khóa học viên bị văng ra (mất cookie phiên) ---
+	type HocVien = { id: number; ten_thanh: string; ho_ten: string; giao_xu: string; giao_phan: string; da_thi: boolean; tiep_tuc: boolean };
+	const ten = (h: HocVien) => [h.ten_thanh, h.ho_ten].filter(Boolean).join(' ');
+	let tim = $state('');
+	let dsTim = $state<HocVien[]>([]);
+	let moKq = $state<{ kieu: 'ok' | 'loi'; noiDung: string } | null>(null);
+	let henTim: ReturnType<typeof setTimeout> | undefined;
+
+	function gõTim() {
+		clearTimeout(henTim);
+		moKq = null;
+		if (tim.trim().length < 2) {
+			dsTim = [];
+			return;
+		}
+		henTim = setTimeout(async () => {
+			const r = await fetch(`/api/tim-kiem?q=${encodeURIComponent(tim.trim())}`).catch(() => null);
+			if (r?.ok) dsTim = (await r.json()) as HocVien[];
+		}, 250);
+	}
+
+	async function moKhoa(h: HocVien) {
+		if (!token.trim()) {
+			moKq = { kieu: 'loi', noiDung: 'Vui lòng nhập mã quản trị ở phía trên.' };
+			return;
+		}
+		const r = await fetch('/api/admin/mo-khoa', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token.trim()}` },
+			body: JSON.stringify({ hoc_vien_id: h.id })
+		}).catch(() => null);
+		const b: any = await r?.json().catch(() => ({}));
+		if (r?.ok) {
+			moKq = { kieu: 'ok', noiDung: `Đã mở khóa ${b.ten}. Bảo học viên mở lại trang thi, gõ và chọn lại tên của mình để tiếp tục.` };
+			h.tiep_tuc = true;
+		} else moKq = { kieu: 'loi', noiDung: r?.status === 401 ? 'Sai mã quản trị.' : (b?.error ?? 'Không mở khóa được.') };
+	}
+
 	function dienGiai(viec: Viec, status: number, b: any): Kq {
 		if (status === 401) return { kieu: 'loi', tieuDe: 'Sai mã quản trị, hoặc chưa đặt ADMIN_TOKEN trên Cloudflare (cần từ 16 ký tự).', dong: [], canhBao: [] };
 		if (status === 409)
@@ -110,6 +148,42 @@
 						</div>
 					{/if}
 				{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="card card-border mt-4">
+		<div class="card-body">
+			<h2 class="text-lg font-semibold">Mở khóa học viên</h2>
+			<p class="text-sm opacity-85">
+				Dùng khi học viên bị văng ra và không vào lại được (báo "đã có lượt thi") vì mất phiên trên máy: xóa dữ liệu trình duyệt, chế độ riêng
+				tư, đổi máy. Sau khi mở khóa, học viên tìm và chọn lại tên của mình để làm tiếp, đồng hồ vẫn chạy từ lúc bắt đầu.
+			</p>
+			<div class="fieldset">
+				<label class="fieldset-legend" for="tim-mo-khoa">Tên học viên</label>
+				<input id="tim-mo-khoa" class="input w-full" type="text" bind:value={tim} oninput={gõTim} autocomplete="off" />
+			</div>
+			{#if dsTim.length}
+				<ul class="divide-y divide-base-300 rounded-box border border-base-300">
+					{#each dsTim as h (h.id)}
+						<li class="flex items-center justify-between gap-3 p-3">
+							<div class="min-w-0">
+								<p class="font-semibold">{ten(h)}</p>
+								<p class="text-sm opacity-85">{[h.giao_xu, h.giao_phan].filter(Boolean).join(', ') || 'Chưa có giáo xứ'}</p>
+							</div>
+							{#if !h.da_thi}
+								<span class="text-sm opacity-85">Chưa thi</span>
+							{:else if h.tiep_tuc}
+								<span class="badge badge-success">Đã mở khóa</span>
+							{:else}
+								<button class="btn" onclick={() => moKhoa(h)}>Mở khóa</button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			<div aria-live="polite">
+				{#if moKq}<div class={['alert alert-soft', moKq.kieu === 'ok' ? 'alert-success' : 'alert-error']} role={moKq.kieu === 'ok' ? 'status' : 'alert'}>{moKq.noiDung}</div>{/if}
 			</div>
 		</div>
 	</div>

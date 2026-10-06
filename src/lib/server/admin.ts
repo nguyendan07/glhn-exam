@@ -76,6 +76,22 @@ export function parseCauHoi(rows: string[][]) {
  * người đã có lượt thi), dòng nào bị xóa khỏi Sheet thì bị xóa khỏi D1 trừ khi đã có lượt thi.
  * Từ chối khi đang có lượt thi dở dang (trừ khi force) vì đề đã phát tham chiếu tới mã câu hỏi.
  */
+/**
+ * Mở khóa lượt thi của một học viên (token_hash = NULL) để họ vào lại từ thiết bị/trình duyệt khác bằng cách tìm và chọn lại tên.
+ * Dùng khi học viên mất cookie phiên (xóa dữ liệu duyệt web, chế độ riêng tư, đổi máy).
+ */
+export async function moKhoa(db: D1Database, body: unknown) {
+	const id = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
+	if (!Number.isInteger(id) || (id as number) <= 0) return { status: 400, body: { error: 'Thiếu hoc_vien_id.' } };
+	const l = await db
+		.prepare('SELECT ho_ten, ten_thanh, trang_thai FROM luot_thi WHERE hoc_vien_id = ?')
+		.bind(id)
+		.first<{ ho_ten: string; ten_thanh: string; trang_thai: string }>();
+	if (!l) return { status: 404, body: { error: 'Học viên này chưa có lượt thi để mở khóa.' } };
+	await db.prepare('UPDATE luot_thi SET token_hash = NULL WHERE hoc_vien_id = ?').bind(id).run();
+	return { status: 200, body: { ten: [l.ten_thanh, l.ho_ten].filter(Boolean).join(' '), trang_thai: l.trang_thai } };
+}
+
 /** Tab PhanThi: A Nhóm | B Tiêu đề phần | C Số câu | D Hướng dẫn (tùy chọn) | E Xáo thứ tự câu: để trống/có, hoặc "không" để giữ thứ tự trong ngân hàng. Thứ tự dòng là thứ tự các phần. */
 export function parsePhanThi(rows: string[][]) {
 	const loi: string[] = [];
