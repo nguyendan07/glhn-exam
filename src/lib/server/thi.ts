@@ -1,5 +1,6 @@
 import { chamTN, taoDe, thoiGian, type CauHoi, type MucDe, type Phan } from './exam';
-import { chuanHoa, GIOI_HAN, lamSachVanBan } from './normalize';
+import { chuanHoa, GIOI_HAN, lamSachVanBan, sha256Hex } from './normalize';
+import { deltaBaiLam, ghiNhatKy, type May, type SuKien } from './nhat-ky';
 
 export const COOKIE = 'phien_thi';
 // Lax (không phải strict): strict không gửi cookie khi học viên mở lại bài thi từ liên kết/QR/ứng dụng khác (Zalo, Messenger, Mail...),
@@ -26,10 +27,7 @@ export async function docJson(request: Request): Promise<unknown> {
 
 export const taoToken = () => crypto.randomUUID();
 
-export async function sha256Hex(s: string): Promise<string> {
-	const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-	return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join('');
-}
+export { sha256Hex };
 
 type PhanCauHinh = Phan & { ten: string; huong_dan: string };
 type CauHinh = { thoiLuong: number; dungSai: number; phan: PhanCauHinh[] };
@@ -61,13 +59,14 @@ type Luot = {
 	de_thi: string;
 	so_lan_roi_tab: number;
 	nop_tre: number;
+	may_cuoi: string | null;
 	dap_an_tn: string;
 	tu_luan: string;
 	diem_tn: number | null;
 };
 
 const SELECT_LUOT = `SELECT l.id, l.ho_ten, l.ten_thanh, l.giao_xu, l.giao_phan, l.token_hash,
-	l.started_at, l.submitted_at, l.trang_thai, l.de_thi, l.so_lan_roi_tab, l.nop_tre,
+	l.started_at, l.submitted_at, l.trang_thai, l.de_thi, l.so_lan_roi_tab, l.nop_tre, l.may_cuoi,
 	b.dap_an_tn, b.tu_luan, b.diem_tn
 	FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id`;
 
@@ -87,7 +86,7 @@ function thongTin(l: Luot) {
 }
 
 /** Câu hỏi (kể cả đáp án đúng, chỉ dùng phía server) theo danh sách mã. */
-async function docCauHoi(db: D1Database, mas: string[]): Promise<Map<string, CauHoi>> {
+export async function docCauHoi(db: D1Database, mas: string[]): Promise<Map<string, CauHoi>> {
 	const { results } = await db
 		.prepare('SELECT * FROM cau_hoi WHERE ma IN (SELECT value FROM json_each(?))')
 		.bind(JSON.stringify(mas))
@@ -137,7 +136,7 @@ export async function timHocVien(db: D1Database, q: string, token?: string) {
 }
 
 /** POST /api/start { hoc_vien_id }: tạo lượt thi mới hoặc trả lại lượt đang có (cùng thiết bị). */
-export async function batDau(db: D1Database, body: unknown, token: string | undefined, now = Date.now()): Promise<KetQuaStart> {
+export async function batDau(db: D1Database, body: unknown, token: string | undefined, now = Date.now(), may?: May): Promise<KetQuaStart> {
 	const hvId = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
 	if (!Number.isInteger(hvId) || (hvId as number) <= 0) return { res: Response.json({ error: 'Vui lòng chọn tên của bạn trong danh sách.' }, { status: 400 }) };
 	const hv = await db
@@ -148,7 +147,7 @@ export async function batDau(db: D1Database, body: unknown, token: string | unde
 
 	const timTheoHv = () => db.prepare('SELECT id, token_hash, trang_thai FROM luot_thi WHERE hoc_vien_id = ?').bind(hv.id).first<CuRow>();
 	const cu = await timTheoHv();
-	if (cu) return tiepTuc(db, cu, token);
+	if (cu) return tiepTuc(db, cu, token, now, may);
 
 	const cfg = await docCauHinh(db);
 	const { results: nganHang } = await db.prepare('SELECT * FROM cau_hoi ORDER BY rowid').all<CauHoi>();
@@ -170,14 +169,21 @@ export async function batDau(db: D1Database, body: unknown, token: string | unde
 			),
 		db.prepare('INSERT INTO bai_lam (luot_id) SELECT id FROM luot_thi WHERE id = ?').bind(id)
 	]);
-	if (ins.meta.changes === 0) return tiepTuc(db, (await timTheoHv())!, token);
+	if (ins.meta.changes === 0) return tiepTuc(db, (await timTheoHv())!, token, now, may);
+	const mayJ = may ? JSON.stringify(may) : null;
+	await ghiNhatKy(db, id, now, [{ su_kien: 'bat_dau', chi_tiet: { so_cau: de.length }, may: mayJ }], mayJ);
 	return { res: Response.json({ trang_thai: 'dang_thi' }), token: moi };
 }
 
 type CuRow = { id: string; token_hash: string | null; trang_thai: string };
 
-async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined): Promise<KetQuaStart> {
-	if (token && (await sha256Hex(token)) === cu.token_hash) return { res: Response.json({ trang_thai: cu.trang_thai }) };
+async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined, now: number, may?: May): Promise<KetQuaStart> {
+	const mayJ = may ? JSON.stringify(may) : null;
+	const vao = (chiTiet?: unknown) => ghiNhatKy(db, cu.id, now, [{ su_kien: 'tiep_tuc', chi_tiet: chiTiet, may: mayJ }], mayJ);
+	if (token && (await sha256Hex(token)) === cu.token_hash) {
+		await vao();
+		return { res: Response.json({ trang_thai: cu.trang_thai }) };
+	}
 	// token_hash NULL: giám thị đã mở khóa để học viên vào lại từ thiết bị khác.
 	if (cu.token_hash === null) {
 		const moi = taoToken();
@@ -185,8 +191,13 @@ async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined): Pr
 			.prepare('UPDATE luot_thi SET token_hash = ? WHERE id = ? AND token_hash IS NULL')
 			.bind(await sha256Hex(moi), cu.id)
 			.run();
-		if (r.meta.changes === 1) return { res: Response.json({ trang_thai: cu.trang_thai }), token: moi };
+		if (r.meta.changes === 1) {
+			await vao({ sau_mo_khoa: true });
+			return { res: Response.json({ trang_thai: cu.trang_thai }), token: moi };
+		}
 	}
+	// Ghi lại cả lần thử bị chặn (IP/trình duyệt của người thử) nhưng không đổi may_cuoi của lượt thi.
+	await ghiNhatKy(db, cu.id, now, [{ su_kien: 'tu_choi', chi_tiet: { ly_do: cu.trang_thai === 'da_nop' ? 'da_nop' : 'thiet_bi_khac' }, may: mayJ }]);
 	const error =
 		cu.trang_thai === 'da_nop'
 			? 'Bạn đã thi rồi. Mỗi học viên chỉ được thi một lần.'
@@ -194,7 +205,7 @@ async function tiepTuc(db: D1Database, cu: CuRow, token: string | undefined): Pr
 	return { res: Response.json({ error }, { status: 409 }) };
 }
 
-type BaiLam = { dap_an_tn: Record<string, number>; tu_luan: Record<string, string>; so_lan_roi_tab: number };
+type BaiLam = { dap_an_tn: Record<string, number>; tu_luan: Record<string, string>; so_lan_roi_tab: number; roi: number[] };
 
 /** Validate đáp án gửi lên, chỉ giữ các câu có trong đề của học viên. */
 export function kiemTraBaiLam(body: unknown, de: MucDe[]): BaiLam | string {
@@ -203,7 +214,7 @@ export function kiemTraBaiLam(body: unknown, de: MucDe[]): BaiLam | string {
 	const tn = (b.dap_an_tn ?? {}) as Record<string, unknown>;
 	const tl = (b.tu_luan ?? {}) as Record<string, unknown>;
 	if (typeof tn !== 'object' || typeof tl !== 'object') return 'Dữ liệu không hợp lệ.';
-	const out: BaiLam = { dap_an_tn: {}, tu_luan: {}, so_lan_roi_tab: 0 };
+	const out: BaiLam = { dap_an_tn: {}, tu_luan: {}, so_lan_roi_tab: 0, roi: [] };
 	for (const m of de) {
 		if (m.thu_tu) {
 			const c = tn[m.ma];
@@ -219,6 +230,8 @@ export function kiemTraBaiLam(body: unknown, de: MucDe[]): BaiLam | string {
 			out.tu_luan[m.ma] = clean;
 		}
 	}
+	// Các lần rời màn hình (số giây) chưa gửi, để ghi nhật ký. Chỉ nhận số nguyên hợp lý, tối đa 50 lần mỗi lần gửi.
+	if (Array.isArray(b.roi)) out.roi = b.roi.filter((g) => Number.isInteger(g) && g >= 0 && g <= 86_400).slice(0, 50);
 	const r = b.so_lan_roi_tab;
 	out.so_lan_roi_tab = Number.isInteger(r) && (r as number) >= 0 ? Math.min(r as number, 100_000) : 0;
 	return out;
@@ -248,8 +261,20 @@ export async function trangThaiThi(db: D1Database, l: Luot, now = Date.now()) {
 	};
 }
 
+/**
+ * Ghi các sự kiện của một lượt thi đang diễn ra. Thông tin máy chỉ đính kèm (vào sự kiện đầu) khi khác với lần ghi trước;
+ * nếu máy/IP đổi mà không có sự kiện nào khác thì ghi riêng một sự kiện `doi_may`.
+ */
+async function nhatKyCoMay(db: D1Database, l: Luot, now: number, ds: SuKien[], may?: May) {
+	const mayJ = may ? JSON.stringify(may) : null;
+	const doi = mayJ !== null && mayJ !== l.may_cuoi;
+	if (doi && !ds.length) ds = [{ su_kien: 'doi_may' }];
+	if (doi) ds = [{ ...ds[0], may: mayJ }, ...ds.slice(1)];
+	await ghiNhatKy(db, l.id, now, ds, doi ? mayJ : undefined);
+}
+
 /** PUT /api/save: lưu toàn bộ đáp án hiện tại (ghi đè), chỉ khi còn trong hạn. */
-export async function luuBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now()) {
+export async function luuBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now(), may?: May) {
 	const l = await timLuotTheoToken(db, token);
 	if (!l) return Response.json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 });
 	if (l.trang_thai === 'da_nop') return Response.json({ error: 'Bài đã nộp.', da_nop: true }, { status: 409 });
@@ -269,6 +294,11 @@ export async function luuBai(db: D1Database, token: string | undefined, body: un
 			.prepare(`UPDATE luot_thi SET so_lan_roi_tab = MAX(so_lan_roi_tab, ?) WHERE id = ? AND trang_thai = 'dang_thi'`)
 			.bind(b.so_lan_roi_tab, l.id)
 	]);
+	const ds: SuKien[] = [];
+	const delta = await deltaBaiLam({ tn: JSON.parse(l.dap_an_tn), tl: JSON.parse(l.tu_luan) }, { tn: b.dap_an_tn, tl: b.tu_luan });
+	if (delta) ds.push({ su_kien: 'luu', chi_tiet: delta });
+	for (const giay of b.roi) ds.push({ su_kien: 'roi_man_hinh', chi_tiet: { giay } });
+	await nhatKyCoMay(db, l, now, ds, may);
 	return Response.json({ ok: true, con_lai_ms: t.conLaiMs, nop_duoc_sau_ms: t.nopDuocSauMs });
 }
 
@@ -276,7 +306,7 @@ export async function luuBai(db: D1Database, token: string | undefined, body: un
  * POST /api/submit. Idempotent: chỉ lần chuyển dang_thi → da_nop đầu tiên được ghi (điều kiện trong SQL).
  * Nộp quá T + dung sai: nhận nhưng nop_tre=1 và chỉ chấm đáp án đã lưu trước đó.
  */
-export async function nopBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now()) {
+export async function nopBai(db: D1Database, token: string | undefined, body: unknown, now = Date.now(), may?: May) {
 	const l = await timLuotTheoToken(db, token);
 	if (!l) return { res: Response.json({ error: 'Phiên thi không hợp lệ.' }, { status: 401 }) };
 	if (l.trang_thai === 'da_nop') return { res: Response.json(await ketQua(db, l)) };
@@ -292,12 +322,23 @@ export async function nopBai(db: D1Database, token: string | undefined, body: un
 		};
 
 	const de: MucDe[] = JSON.parse(l.de_thi);
-	let bai: BaiLam = { dap_an_tn: JSON.parse(l.dap_an_tn), tu_luan: JSON.parse(l.tu_luan), so_lan_roi_tab: 0 };
+	let bai: BaiLam = { dap_an_tn: JSON.parse(l.dap_an_tn), tu_luan: JSON.parse(l.tu_luan), so_lan_roi_tab: 0, roi: [] };
+	const goc = { tn: bai.dap_an_tn, tl: bai.tu_luan };
+	let thayDoi = null; // thay đổi so với lần lưu cuối, được nhận vào bài
+	let boQua = null; // thay đổi nộp quá hạn, KHÔNG được chấm: ghi nhật ký để giám thị đối chiếu
+	let roi: number[] = [];
 	if (body !== undefined) {
 		const b = kiemTraBaiLam(body, de);
 		if (typeof b === 'string') return { res: Response.json({ error: b }, { status: 400 }) };
-		if (!t.tre) bai = b;
-		else bai.so_lan_roi_tab = b.so_lan_roi_tab;
+		roi = b.roi;
+		const d = await deltaBaiLam(goc, { tn: b.dap_an_tn, tl: b.tu_luan });
+		if (!t.tre) {
+			bai = b;
+			thayDoi = d;
+		} else {
+			bai.so_lan_roi_tab = b.so_lan_roi_tab;
+			boQua = d;
+		}
 	}
 	const { diem } = chamTN(de, await docCauHoi(db, de.map((m) => m.ma)), bai.dap_an_tn);
 
@@ -318,6 +359,13 @@ export async function nopBai(db: D1Database, token: string | undefined, body: un
 			.bind(now, t.tre ? 1 : 0, bai.so_lan_roi_tab, l.id)
 	]);
 	const moiNop = upd.meta.changes === 1;
+	if (moiNop) {
+		const ds: SuKien[] = [];
+		if (thayDoi) ds.push({ su_kien: 'luu', chi_tiet: thayDoi });
+		for (const giay of roi) ds.push({ su_kien: 'roi_man_hinh', chi_tiet: { giay } });
+		ds.push({ su_kien: 'nop', chi_tiet: { nop_tre: t.tre, diem_tn: diem, ...(boQua && { bo_qua: boQua }) }, may: may ? JSON.stringify(may) : null });
+		await nhatKyCoMay(db, l, now, ds, may);
+	}
 	const sau = (await timLuotTheoToken(db, token))!;
 	return { res: Response.json(await ketQua(db, sau)), moiNop, luotId: l.id };
 }

@@ -1,7 +1,8 @@
 import { lamSach } from './normalize';
+import { ghiNhatKy } from './nhat-ky';
 import { parseHocVien } from './hoc-vien';
 import { docVung, ghiVung, TAB_KET_QUA, TIEU_DE_KET_QUA, type SheetEnv } from './sheets';
-import { sha256Hex } from './thi';
+import { docCauHoi, sha256Hex } from './thi';
 
 /** Header `Authorization: Bearer <ADMIN_TOKEN>`. So sánh qua SHA-256 để thời gian so sánh không phụ thuộc nội dung. */
 export async function laAdmin(request: Request, adminToken: string | undefined): Promise<boolean> {
@@ -80,16 +81,75 @@ export function parseCauHoi(rows: string[][]) {
  * Mở khóa lượt thi của một học viên (token_hash = NULL) để họ vào lại từ thiết bị/trình duyệt khác bằng cách tìm và chọn lại tên.
  * Dùng khi học viên mất cookie phiên (xóa dữ liệu duyệt web, chế độ riêng tư, đổi máy).
  */
-export async function moKhoa(db: D1Database, body: unknown) {
+export async function moKhoa(db: D1Database, body: unknown, now = Date.now()) {
 	const id = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
 	if (!Number.isInteger(id) || (id as number) <= 0) return { status: 400, body: { error: 'Thiếu hoc_vien_id.' } };
 	const l = await db
-		.prepare('SELECT ho_ten, ten_thanh, trang_thai FROM luot_thi WHERE hoc_vien_id = ?')
+		.prepare('SELECT id, ho_ten, ten_thanh, trang_thai FROM luot_thi WHERE hoc_vien_id = ?')
 		.bind(id)
-		.first<{ ho_ten: string; ten_thanh: string; trang_thai: string }>();
+		.first<{ id: string; ho_ten: string; ten_thanh: string; trang_thai: string }>();
 	if (!l) return { status: 404, body: { error: 'Học viên này chưa có lượt thi để mở khóa.' } };
 	await db.prepare('UPDATE luot_thi SET token_hash = NULL WHERE hoc_vien_id = ?').bind(id).run();
+	await ghiNhatKy(db, l.id, now, [{ su_kien: 'mo_khoa' }]);
 	return { status: 200, body: { ten: [l.ten_thanh, l.ho_ten].filter(Boolean).join(' '), trang_thai: l.trang_thai } };
+}
+
+/**
+ * Nhật ký của một lượt thi để giám thị đối chiếu: thông tin lượt thi, dòng thời gian sự kiện (kèm IP/vị trí/trình duyệt khi có đổi)
+ * và bài làm đúng như học viên đã thấy (thứ tự đáp án đã xáo, đáp án đã chọn, đáp án đúng). Chỉ gọi sau khi đã qua kiểm tra token.
+ */
+export async function xemNhatKy(db: D1Database, body: unknown) {
+	const id = (body as { hoc_vien_id?: unknown } | null)?.hoc_vien_id;
+	if (!Number.isInteger(id) || (id as number) <= 0) return { status: 400, body: { error: 'Thiếu hoc_vien_id.' } };
+	const l = await db
+		.prepare(
+			`SELECT l.id, l.ho_ten, l.ten_thanh, l.giao_xu, l.giao_phan, l.started_at, l.submitted_at, l.trang_thai, l.nop_tre,
+			l.so_lan_roi_tab, l.de_thi, b.dap_an_tn, b.tu_luan, b.diem_tn
+			FROM luot_thi l JOIN bai_lam b ON b.luot_id = l.id WHERE l.hoc_vien_id = ?`
+		)
+		.bind(id)
+		.first<Record<string, any>>();
+	if (!l) return { status: 404, body: { error: 'Học viên này chưa có lượt thi.' } };
+	const { results } = await db
+		.prepare('SELECT luc, su_kien, chi_tiet, may FROM nhat_ky WHERE luot_id = ? ORDER BY id LIMIT 5000')
+		.bind(l.id)
+		.all<{ luc: number; su_kien: string; chi_tiet: string | null; may: string | null }>();
+	const thu = (j: string | null) => {
+		try {
+			return j ? JSON.parse(j) : null;
+		} catch {
+			return null;
+		}
+	};
+	const de: { ma: string; thu_tu?: number[] }[] = JSON.parse(l.de_thi);
+	const ch = await docCauHoi(db, de.map((m) => m.ma));
+	const tn: Record<string, number> = JSON.parse(l.dap_an_tn);
+	const tl: Record<string, string> = JSON.parse(l.tu_luan);
+	return {
+		status: 200,
+		body: {
+			luot: {
+				ten: [l.ten_thanh, l.ho_ten].filter(Boolean).join(' '),
+				giao_xu: l.giao_xu, giao_phan: l.giao_phan, bat_dau: l.started_at, nop: l.submitted_at,
+				trang_thai: l.trang_thai, nop_tre: l.nop_tre === 1, so_lan_roi_tab: l.so_lan_roi_tab, diem_tn: l.diem_tn
+			},
+			su_kien: results.map((e) => ({ luc: e.luc, su_kien: e.su_kien, chi_tiet: thu(e.chi_tiet), may: thu(e.may) })),
+			bai_thi: de.flatMap((m, i) => {
+				const q = ch.get(m.ma);
+				if (!q) return [];
+				const goc: string[] | null = q.lua_chon ? JSON.parse(q.lua_chon) : null;
+				const chon = m.thu_tu ? (tn[m.ma] ?? null) : null;
+				return [{
+					stt: i + 1, ma: q.ma, phan: q.nhom, loai: q.loai, diem: q.diem, noi_dung: q.noi_dung,
+					lua_chon: m.thu_tu && goc ? m.thu_tu.map((j) => goc[j]) : null,
+					da_chon: chon,
+					dap_an_dung: m.thu_tu ? m.thu_tu.indexOf(q.dap_an as number) : null,
+					dung: m.thu_tu && chon !== null ? m.thu_tu[chon] === q.dap_an : null,
+					tra_loi: m.thu_tu ? null : (tl[m.ma] ?? null)
+				}];
+			})
+		}
+	};
 }
 
 /** Tab PhanThi: A Nhóm | B Tiêu đề phần | C Số câu | D Hướng dẫn (tùy chọn) | E Xáo thứ tự câu: để trống/có, hoặc "không" để giữ thứ tự trong ngân hàng. Thứ tự dòng là thứ tự các phần. */

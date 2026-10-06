@@ -22,3 +22,9 @@ export function lamSachVanBan(s: string): string {
 }
 
 export const GIOI_HAN = { tu_luan: 5000 } as const;
+
+/** SHA-256 dạng hex (dùng cho token phiên và mã băm nhật ký). */
+export async function sha256Hex(s: string): Promise<string> {
+	const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+	return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
