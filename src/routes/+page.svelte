@@ -167,6 +167,9 @@
 			</p>
 		{/if}
 		<p>{chon?.da_thi ? 'Đồng hồ vẫn đang chạy từ lúc bạn bắt đầu.' : 'Đồng hồ sẽ bắt đầu chạy ngay khi bạn bấm "Bắt đầu".'}</p>
+		<p class="mt-3 text-sm opacity-85">
+			Để đối chiếu khi cần, hệ thống ghi lại địa chỉ IP, vị trí ước tính, trình duyệt và diễn biến làm bài của bạn (các câu đã chọn, số lần rời màn hình thi).
+		</p>
 		<div class="modal-action">
 			<button class="btn" type="button" onclick={() => hopXacNhan.close()} disabled={dangGui}>Chọn lại</button>
 			<button class="btn btn-primary" type="button" onclick={batDau} disabled={dangGui}>

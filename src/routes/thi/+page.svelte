@@ -23,6 +23,10 @@
 	let dangNop = $state(false);
 	let thongBao = $state('');
 	let hopXacNhan: HTMLDialogElement;
+	let hopCanhBao: HTMLDialogElement;
+	let lanRoiCuoi = $state(0); // số giây của lần rời gần nhất, hiện trong cảnh báo
+	let roiLuc: number | null = null; // lúc bắt đầu rời màn hình (null = đang ở trong trang)
+	let chuaGuiRoi: number[] = []; // số giây các lần rời chưa gửi lên máy chủ (để ghi nhật ký)
 
 	let dirty = false;
 	let dangGuiLuu: Promise<void> | null = null;
@@ -54,7 +58,8 @@
 		return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 	}
 
-	const baiLam = () => ({ dap_an_tn: dapAn, tu_luan: tuLuan, so_lan_roi_tab: roiTab });
+	const baiLam = () => ({ dap_an_tn: dapAn, tu_luan: tuLuan, so_lan_roi_tab: roiTab, roi: [...chuaGuiRoi] });
+	const dinhDangGiay = (g: number) => (g < 60 ? `${g} giây` : `${Math.floor(g / 60)} phút ${g % 60} giây`);
 
 	function dongBo(r: { con_lai_ms?: number; nop_duoc_sau_ms?: number }) {
 		if (typeof r.con_lai_ms === 'number') hetGioLuc = Date.now() + r.con_lai_ms;
@@ -66,6 +71,7 @@
 		if (dangGuiLuu) return dangGuiLuu;
 		dirty = false;
 		luu = 'dang_luu';
+		const soRoiGui = chuaGuiRoi.length;
 		dangGuiLuu = (async () => {
 			try {
 				const r = await fetch('/api/save', {
@@ -76,6 +82,7 @@
 				});
 				const j: any = await r.json();
 				if (r.ok) {
+					chuaGuiRoi.splice(0, soRoiGui);
 					dongBo(j);
 					luu = dirty ? 'chua_luu' : 'da_luu';
 				} else if (j.het_gio) {
@@ -139,12 +146,25 @@
 			if (hetGioLuc - now <= 0 && !dangNop) nop();
 		}, 1000);
 		const dinhKy = setInterval(luuBai, 30_000);
-		const anTab = () => {
-			if (document.hidden) {
-				roiTab++;
-				daSua();
-			}
+		// Rời màn hình = ẩn tab/khóa máy/chuyển ứng dụng (visibilitychange) hoặc cửa sổ mất focus (blur). Không thể hiện hộp thoại khi
+		// đang đi vắng nên cảnh báo hiện ngay khi quay lại; số lần và số giây được lưu cùng bài và ghi vào nhật ký.
+		// ponytail: chỉ tính khi quay lại; nếu trình duyệt tự đóng trang lúc đang đi vắng thì lần rời đó không được ghi.
+		const roi = () => {
+			roiLuc ??= Date.now();
+			if (document.hidden) daSua(); // lưu ngay phần đang làm dở
 		};
+		const quayLai = () => {
+			if (roiLuc === null || document.hidden || dangNop) return;
+			const giay = Math.round((Date.now() - roiLuc) / 1000);
+			roiLuc = null;
+			if (giay < 1) return; // bỏ qua các lần mất focus thoáng qua
+			roiTab++;
+			lanRoiCuoi = giay;
+			chuaGuiRoi.push(giay);
+			daSua();
+			if (!hopCanhBao.open) hopCanhBao.showModal();
+		};
+		const anTab = () => (document.hidden ? roi() : quayLai());
 		const len = () => {
 			online = true;
 			if (dirty) luuBai();
@@ -159,6 +179,8 @@
 		};
 		document.addEventListener('visibilitychange', anTab);
 		addEventListener('pagehide', anTrang);
+		addEventListener('blur', roi);
+		addEventListener('focus', quayLai);
 		addEventListener('online', len);
 		addEventListener('offline', xuong);
 		addEventListener('beforeunload', roiTrang);
@@ -171,6 +193,8 @@
 			removeEventListener('offline', xuong);
 			removeEventListener('beforeunload', roiTrang);
 			removeEventListener('pagehide', anTrang);
+			removeEventListener('blur', roi);
+			removeEventListener('focus', quayLai);
 		};
 	});
 </script>
@@ -207,6 +231,7 @@
 				<span class="badge badge-success">Đã lưu</span>
 			{/if}
 			<span class="text-sm opacity-85">Đã trả lời {soDaTraLoi}/{ds.length}</span>
+			{#if roiTab > 0}<span class="badge badge-warning">Rời màn hình {roiTab} lần</span>{/if}
 		</div>
 	</div>
 </header>
@@ -316,6 +341,19 @@
 </div>
 </div>
 </div>
+
+<dialog bind:this={hopCanhBao} class="modal" aria-labelledby="cb-title" aria-describedby="cb-nd">
+	<div class="modal-box">
+		<h2 id="cb-title" class="text-xl font-semibold text-error">Bạn vừa rời khỏi màn hình thi</h2>
+		<div id="cb-nd">
+			<p class="py-2">Bạn đã rời trang làm bài khoảng <b>{dinhDangGiay(lanRoiCuoi)}</b>. Đây là <b>lần thứ {roiTab}</b>.</p>
+			<p>Mỗi lần rời đều được hệ thống ghi lại và giám thị có thể xem lại. Vui lòng không mở ứng dụng hoặc trang web khác trong lúc thi.</p>
+		</div>
+		<div class="modal-action">
+			<button class="btn btn-primary" onclick={() => hopCanhBao.close()}>Tôi đã hiểu, tiếp tục làm bài</button>
+		</div>
+	</div>
+</dialog>
 
 <dialog bind:this={hopXacNhan} class="modal" aria-labelledby="xn-title">
 	<div class="modal-box">

@@ -37,6 +37,88 @@
 	let moKq = $state<{ kieu: 'ok' | 'loi'; noiDung: string } | null>(null);
 	let henTim: ReturnType<typeof setTimeout> | undefined;
 
+	// --- Nhật ký bài thi của một học viên ---
+	type SuKien = { luc: number; su_kien: string; chi_tiet: any; may: any };
+	type NhatKy = { luot: any; su_kien: SuKien[]; bai_thi: any[] };
+	let nk = $state<NhatKy | null>(null);
+
+	const gio = (ms: number | null) =>
+		ms ? new Date(ms).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false }) : '—';
+	const chuCai = (i: number) => String.fromCharCode(65 + i);
+	// Rút gọn User-Agent thành "Safari · iPad" cho dễ đọc; bản gốc vẫn có trong tải JSON.
+	function trinhDuyet(ua?: string) {
+		if (!ua) return '?';
+		const tt = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Trình duyệt khác';
+		const hdh = /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '?';
+		return `${tt} · ${hdh}`;
+	}
+	const viTri = (m: any) => [m.thanh_pho, m.vung !== m.thanh_pho ? m.vung : '', m.quoc_gia].filter(Boolean).join(', ') || 'không rõ vị trí';
+	const sttCau = (ma: string) => nk?.bai_thi.find((c) => c.ma === ma)?.stt ?? ma;
+
+	function moTa(e: SuKien): string {
+		const c = e.chi_tiet ?? {};
+		switch (e.su_kien) {
+			case 'bat_dau': return 'Bắt đầu làm bài';
+			case 'tiep_tuc': return c.sau_mo_khoa ? 'Vào lại bài thi (sau khi giám thị mở khóa)' : 'Vào lại bài thi';
+			case 'tu_choi': return c.ly_do === 'da_nop' ? 'Bị chặn: có người thử vào lượt thi đã nộp' : 'Bị chặn: có thiết bị khác thử vào lượt đang thi';
+			case 'luu': {
+				const p = [
+					...Object.entries(c.tn ?? {}).map(([ma, i]) => `câu ${sttCau(ma)} chọn ${chuCai(i as number)}`),
+					...Object.entries(c.tl ?? {}).map(([ma, t]: [string, any]) => `câu ${sttCau(ma)} viết ${t.do_dai} ký tự (mã ${t.bam})`),
+					...(c.xoa ?? []).map((ma: string) => `câu ${sttCau(ma)} xóa trắng`)
+				];
+				return 'Lưu: ' + p.join('; ');
+			}
+			case 'roi_man_hinh': return `Rời màn hình ${c.giay} giây`;
+			case 'doi_may': return 'Máy hoặc địa chỉ IP thay đổi';
+			case 'nop': return `Nộp bài${c.nop_tre ? ' (TRỄ)' : ''}, điểm trắc nghiệm ${c.diem_tn}${c.bo_qua ? '. Câu trả lời nộp muộn không được chấm: ' + moTa({ ...e, su_kien: 'luu', chi_tiet: c.bo_qua }).slice(5) : ''}`;
+			case 'mo_khoa': return 'Giám thị mở khóa lượt thi';
+			default: return e.su_kien;
+		}
+	}
+
+	// Các máy khác nhau theo thứ tự xuất hiện, và các tín hiệu đáng chú ý.
+	const dsMay = $derived.by(() => {
+		const thay = new Map<string, { luc: number; may: any }>();
+		for (const e of nk?.su_kien ?? []) if (e.may && !thay.has(JSON.stringify(e.may))) thay.set(JSON.stringify(e.may), { luc: e.luc, may: e.may });
+		return [...thay.values()];
+	});
+	const tinHieu = $derived.by(() => {
+		const ds = nk?.su_kien ?? [];
+		const roi = ds.filter((e) => e.su_kien === 'roi_man_hinh');
+		return [
+			roi.length && `Rời màn hình ${roi.length} lần, tổng ${roi.reduce((t, e) => t + (e.chi_tiet?.giay ?? 0), 0)} giây`,
+			dsMay.length > 1 && `Dùng ${dsMay.length} máy/IP khác nhau`,
+			ds.filter((e) => e.su_kien === 'tu_choi').length && `${ds.filter((e) => e.su_kien === 'tu_choi').length} lần thiết bị khác thử vào bị chặn`,
+			ds.some((e) => e.su_kien === 'nop' && e.chi_tiet?.nop_tre) && 'Nộp trễ'
+		].filter(Boolean) as string[];
+	});
+
+	async function xemNk(h: HocVien) {
+		if (!token.trim()) {
+			moKq = { kieu: 'loi', noiDung: 'Vui lòng nhập mã quản trị ở phía trên.' };
+			return;
+		}
+		moKq = null;
+		const r = await fetch('/api/admin/nhat-ky', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization: `Bearer ${token.trim()}` },
+			body: JSON.stringify({ hoc_vien_id: h.id })
+		}).catch(() => null);
+		const b: any = await r?.json().catch(() => ({}));
+		if (r?.ok) nk = b;
+		else moKq = { kieu: 'loi', noiDung: r?.status === 401 ? 'Sai mã quản trị.' : (b?.error ?? 'Không tải được nhật ký.') };
+	}
+
+	function taiJson() {
+		if (!nk) return;
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(new Blob([JSON.stringify(nk, null, 2)], { type: 'application/json' }));
+		a.download = `nhat-ky-${nk.luot.ten.replace(/\s+/g, '-')}.json`;
+		a.click();
+		URL.revokeObjectURL(a.href);
+	}
+
 	function gõTim() {
 		clearTimeout(henTim);
 		moKq = null;
@@ -154,10 +236,11 @@
 
 	<div class="card card-border mt-4">
 		<div class="card-body">
-			<h2 class="text-lg font-semibold">Mở khóa học viên</h2>
+			<h2 class="text-lg font-semibold">Học viên: mở khóa và xem nhật ký bài thi</h2>
 			<p class="text-sm opacity-85">
 				Dùng khi học viên bị văng ra và không vào lại được (báo "đã có lượt thi") vì mất phiên trên máy: xóa dữ liệu trình duyệt, chế độ riêng
 				tư, đổi máy. Sau khi mở khóa, học viên tìm và chọn lại tên của mình để làm tiếp, đồng hồ vẫn chạy từ lúc bắt đầu.
+				<b>Xem nhật ký</b> cho thấy diễn biến làm bài, địa chỉ IP, vị trí ước tính, trình duyệt và các lần rời màn hình để đối chiếu khi cần.
 			</p>
 			<div class="fieldset">
 				<label class="fieldset-legend" for="tim-mo-khoa">Tên học viên</label>
@@ -173,10 +256,15 @@
 							</div>
 							{#if !h.da_thi}
 								<span class="text-sm opacity-85">Chưa thi</span>
-							{:else if h.tiep_tuc}
-								<span class="badge badge-success">Đã mở khóa</span>
 							{:else}
-								<button class="btn" onclick={() => moKhoa(h)}>Mở khóa</button>
+								<div class="flex flex-wrap justify-end gap-2">
+									<button class="btn" onclick={() => xemNk(h)}>Xem nhật ký</button>
+									{#if h.tiep_tuc}
+										<span class="badge badge-success self-center">Đã mở khóa</span>
+									{:else}
+										<button class="btn" onclick={() => moKhoa(h)}>Mở khóa</button>
+									{/if}
+								</div>
 							{/if}
 						</li>
 					{/each}
@@ -185,6 +273,71 @@
 			<div aria-live="polite">
 				{#if moKq}<div class={['alert alert-soft', moKq.kieu === 'ok' ? 'alert-success' : 'alert-error']} role={moKq.kieu === 'ok' ? 'status' : 'alert'}>{moKq.noiDung}</div>{/if}
 			</div>
+
+			{#if nk}
+				<section class="space-y-4 rounded-box border border-base-300 p-4" aria-label="Nhật ký bài thi">
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<h3 class="text-lg font-semibold">Nhật ký: {nk.luot.ten}</h3>
+						<div class="flex gap-2">
+							<button class="btn" onclick={taiJson}>Tải JSON</button>
+							<button class="btn" onclick={() => (nk = null)}>Đóng</button>
+						</div>
+					</div>
+					<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 [&_dd]:font-semibold">
+						<dt>Bắt đầu</dt><dd>{gio(nk.luot.bat_dau)}</dd>
+						<dt>Nộp bài</dt><dd>{nk.luot.nop ? gio(nk.luot.nop) + (nk.luot.nop_tre ? ' (trễ)' : '') : 'Chưa nộp'}</dd>
+						<dt>Điểm trắc nghiệm</dt><dd>{nk.luot.diem_tn ?? '—'}</dd>
+					</dl>
+					{#if tinHieu.length}
+						<div class="alert alert-warning alert-soft items-start"><ul class="list-disc pl-5">{#each tinHieu as t (t)}<li>{t}</li>{/each}</ul></div>
+					{:else}
+						<p class="text-sm opacity-85">Không có dấu hiệu bất thường: không rời màn hình, một máy duy nhất.</p>
+					{/if}
+
+					<div>
+						<h4 class="font-semibold">Máy đã dùng</h4>
+						<ul class="mt-1 space-y-1 text-sm">
+							{#each dsMay as m (m.luc)}
+								<li><b>{gio(m.luc)}</b>: IP {m.may.ip || '?'} · {viTri(m.may)}{m.may.nha_mang ? ' · ' + m.may.nha_mang : ''} · {trinhDuyet(m.may.ua)}</li>
+							{:else}
+								<li class="opacity-85">Chưa ghi nhận thông tin máy.</li>
+							{/each}
+						</ul>
+					</div>
+
+					<div>
+						<h4 class="font-semibold">Diễn biến ({nk.su_kien.length} sự kiện)</h4>
+						<ol class="mt-1 max-h-96 space-y-1 overflow-y-auto text-sm">
+							{#each nk.su_kien as e, i (i)}
+								<li class="flex gap-3"><span class="shrink-0 font-semibold tabular-nums">{gio(e.luc)}</span><span>{moTa(e)}</span></li>
+							{/each}
+						</ol>
+					</div>
+
+					<details>
+						<summary class="cursor-pointer font-semibold">Bài làm đúng như học viên thấy ({nk.bai_thi.length} câu)</summary>
+						<ol class="mt-2 space-y-3 text-sm">
+							{#each nk.bai_thi as c (c.ma)}
+								<li>
+									<p class="font-semibold">Câu {c.stt} ({c.diem} điểm): {c.noi_dung}</p>
+									{#if c.lua_chon}
+										<ul class="ml-4">
+											{#each c.lua_chon as t, i (i)}
+												<li class={[c.da_chon === i && (c.dung ? 'text-success font-semibold' : 'text-error font-semibold')]}>
+													{c.da_chon === i ? '●' : '○'} {chuCai(i)}. {t}{i === c.dap_an_dung ? ' ✓ đáp án đúng' : ''}
+												</li>
+											{/each}
+										</ul>
+										{#if c.da_chon === null}<p class="ml-4 opacity-85">(không trả lời)</p>{/if}
+									{:else}
+										<p class="ml-4 whitespace-pre-wrap">{c.tra_loi ?? '(không trả lời)'}</p>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					</details>
+				</section>
+			{/if}
 		</div>
 	</div>
 </div>
