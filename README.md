@@ -111,15 +111,19 @@ Bấm **Deploy** để áp dụng. Chú ý: mục **Settings → Build → Varia
    Trang này công khai nhưng mọi thao tác đều cần mã quản trị. Trang không lưu mã trong trình duyệt.
 
    Cách khác bằng dòng lệnh:
+
    ```bash
    curl -X POST https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import \
      -H "Content-Type: application/json" -H "Authorization: Bearer <ADMIN_TOKEN>" -d '{}'
    ```
+
    Windows PowerShell:
+
    ```powershell
    Invoke-RestMethod -Method Post -Uri "https://glhn-exam.<tên-tài-khoản>.workers.dev/api/admin/import" `
      -ContentType "application/json" -Headers @{ Authorization = "Bearer <ADMIN_TOKEN>" } -Body "{}"
    ```
+
    **Bắt buộc có `Content-Type: application/json`** (và một body, dù chỉ là `{}`). Thiếu header này, hoặc gửi kiểu form, SvelteKit chặn ngay với lỗi `Cross-site POST form submissions are forbidden` (HTTP 403) trước cả khi kiểm tra token. Trang `/admin` đã gửi đúng nên không gặp lỗi này.
 
 ### Bước 6. Kiểm tra trước ngày thi
@@ -154,18 +158,18 @@ Rồi thêm 3 secrets `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY`, `SHEET_ID` cho
 
 ### Xử lý sự cố
 
-| Triệu chứng                                                             | Nguyên nhân thường gặp                                                                                                       | Cách xử lý                                                      |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Build lỗi, nhắc tên Worker không khớp                                   | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc`                                                                 | Đổi tên cho trùng                                               |
-| Build xong nhưng deploy lỗi về D1                                       | `database_id` sai hoặc chưa phải D1 của tài khoản này                                                                        | Sửa ở Bước 1, push lại                                          |
-| Trang báo lỗi 500, log có `no such table`                               | Chưa chạy migration                                                                                                          | Bước 3                                                          |
-| Trang báo lỗi 500, log có `Chưa có cấu hình`                            | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                                                                       | Bước 3                                                          |
+| Triệu chứng                                                             | Nguyên nhân thường gặp                                                                                                       | Cách xử lý                                                                                |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Build lỗi, nhắc tên Worker không khớp                                   | Tên Worker trên dashboard khác `name` trong `wrangler.jsonc`                                                                 | Đổi tên cho trùng                                                                         |
+| Build xong nhưng deploy lỗi về D1                                       | `database_id` sai hoặc chưa phải D1 của tài khoản này                                                                        | Sửa ở Bước 1, push lại                                                                    |
+| Trang báo lỗi 500, log có `no such table`                               | Chưa chạy migration                                                                                                          | Bước 3                                                                                    |
+| Trang báo lỗi 500, log có `Chưa có cấu hình`                            | Chưa chạy `0002_cau_hinh_mac_dinh.sql`                                                                                       | Bước 3                                                                                    |
 | `/api/admin/…` trả 403 `Cross-site POST form submissions are forbidden` | Gọi POST thiếu `Content-Type: application/json` hoặc gửi kiểu form (cơ chế chống CSRF của SvelteKit, chỉ có ở bản chạy thật) | Dùng trang `/admin`, hoặc thêm `-H "Content-Type: application/json" -d '{}'` (xem Bước 5) |
-| `/api/admin/…` trả 401                                                  | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …`                                         | Bước 4                                                          |
-| Import trả 400 "Không tìm thấy tab …"                                   | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                                                         | Sửa tên tab                                                     |
-| Import trả 500, log có `Sheets … 403`                                   | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                                                            | Chia sẻ lại, kiểm tra secrets                                   |
-| Gõ tên không ra gợi ý                                                   | Chưa import tab `HocVien`                                                                                                    | Bước 5                                                          |
-| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi                            | Phần cần nhiều câu hơn ngân hàng có                                                                                          | Xem `canh_bao` của import, bổ sung câu                          |
+| `/api/admin/…` trả 401                                                  | Chưa đặt `ADMIN_TOKEN`, ngắn hơn 16 ký tự, hoặc sai header `Authorization: Bearer …`                                         | Bước 4                                                                                    |
+| Import trả 400 "Không tìm thấy tab …"                                   | Tên tab trên Sheet sai (phải đúng `CauHoi`, `PhanThi`, `HocVien`, …)                                                         | Sửa tên tab                                                                               |
+| Import trả 500, log có `Sheets … 403`                                   | Chưa chia sẻ Sheet cho email service account, hoặc sai `SHEET_ID`                                                            | Chia sẻ lại, kiểm tra secrets                                                             |
+| Gõ tên không ra gợi ý                                                   | Chưa import tab `HocVien`                                                                                                    | Bước 5                                                                                    |
+| Học viên bấm bắt đầu nhưng báo thiếu câu hỏi                            | Phần cần nhiều câu hơn ngân hàng có                                                                                          | Xem `canh_bao` của import, bổ sung câu                                                    |
 
 ### Cách khác: dùng dòng lệnh thay cho Git
 

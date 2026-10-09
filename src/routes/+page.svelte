@@ -1,11 +1,50 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import logo from '#lib/assets/gpthaibinh90years.webp';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	const tt = $derived(data.thongTin);
+	let moThiLuc = $state(untrack(() => data.lich.mo_thi_luc));
+	let bayGio = $state(untrack(() => data.lich.bay_gio));
+	let daXacNhanMo = $state(untrack(() => data.lich.bay_gio >= data.lich.mo_thi_luc));
+	const conLai = $derived(Math.max(0, Math.ceil((moThiLuc - bayGio) / 1000)));
+	const cacMoc = $derived([
+		{ so: Math.floor(conLai / 86400), ten: 'Ngày' },
+		{ so: Math.floor(conLai / 3600) % 24, ten: 'Giờ' },
+		{ so: Math.floor(conLai / 60) % 60, ten: 'Phút' },
+		{ so: conLai % 60, ten: 'Giây' }
+	]);
+	onMount(() => {
+		let goc = performance.now();
+		let gioMayChu = data.lich.bay_gio;
+		let dangTai = false;
+		const huyLich = new AbortController();
+		async function dongBo() {
+			if (dangTai) return;
+			dangTai = true;
+			try {
+				const r = await fetch('/api/lich-thi', { signal: huyLich.signal, cache: 'no-store' });
+				if (!r.ok) return;
+				const lich = await r.json() as { mo_thi_luc: number; bay_gio: number };
+				moThiLuc = lich.mo_thi_luc;
+				gioMayChu = lich.bay_gio;
+				goc = performance.now();
+				bayGio = gioMayChu;
+				daXacNhanMo = bayGio >= moThiLuc;
+			} catch { /* Thử lại ở lần đồng bộ tiếp theo. */ }
+			finally { dangTai = false; }
+		}
+		void dongBo();
+		const dem = setInterval(() => {
+			bayGio = gioMayChu + performance.now() - goc;
+			if (!daXacNhanMo && bayGio >= moThiLuc) void dongBo();
+		}, 1000);
+		const capNhat = setInterval(dongBo, 15000);
+		return () => { clearInterval(dem); clearInterval(capNhat); huyLich.abort(); };
+	});
+
 
 	// Chữ mặc định khi chưa nạp tab ThongTin từ Google Sheet.
 	const TIEU_DE = 'Chào mừng bạn đến với kỳ thi Giáo Lý Hôn Nhân (2026)';
@@ -19,7 +58,7 @@
 	let ds = $state<HocVien[]>([]);
 	let daTim = $state(false); // đã có kết quả cho chuỗi đang gõ
 	let chon = $state<HocVien | null>(null);
-	let nutBatDau: HTMLButtonElement;
+	let nutBatDau = $state<HTMLButtonElement>();
 	let hopXacNhan: HTMLDialogElement;
 	let loi = $state('');
 	let dangGui = $state(false);
@@ -56,7 +95,7 @@
 		chon = h;
 		q = ten(h);
 		loi = '';
-		tick().then(() => nutBatDau.focus());
+		tick().then(() => nutBatDau?.focus());
 	}
 
 	async function batDau() {
@@ -94,6 +133,24 @@
 		</p>
 	</header>
 
+
+	{#if !daXacNhanMo}
+		<section class="card card-border bg-base-100 text-center" aria-labelledby="cho-thi">
+			<div class="card-body">
+				<h2 id="cho-thi" class="text-xl font-semibold">Kỳ thi sẽ bắt đầu sau</h2>
+				<p>{new Date(moThiLuc).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })} · Giờ Việt Nam (UTC+7)</p>
+				<div class="my-4 grid grid-cols-4 gap-2" role="timer" aria-label="Thời gian còn lại đến giờ thi">
+					{#each cacMoc as moc (moc.ten)}
+						<div class="rounded-box bg-base-200 px-1 py-4">
+							<div class="text-3xl font-semibold tabular-nums md:text-4xl">{String(moc.so).padStart(2, '0')}</div>
+							<div class="mt-1 text-sm">{moc.ten}</div>
+						</div>
+					{/each}
+				</div>
+				<p class="text-base-content/70">{conLai ? 'Trang sẽ tự mở khi đến giờ thi. Bạn có thể giữ màn hình này để chờ.' : 'Đang xác nhận giờ mở thi với máy chủ. Vui lòng giữ kết nối mạng.'}</p>
+			</div>
+		</section>
+	{:else}
 	{#if tt.luu_y.length}
 		<section class="mb-4 rounded-box border border-base-300 bg-base-100 p-4" aria-labelledby="luu-y">
 			<h2 id="luu-y" class="font-semibold">Lưu ý:</h2>
@@ -156,6 +213,7 @@
 			</button>
 		</div>
 	</div>
+	{/if}
 </div>
 
 <dialog bind:this={hopXacNhan} class="modal" aria-labelledby="bd-title">

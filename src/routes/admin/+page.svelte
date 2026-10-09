@@ -1,4 +1,25 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import type { PageProps } from './$types';
+	let { data }: PageProps = $props();
+	let gioThi = $state(untrack(() => new Date(data.lich.mo_thi_luc + 7 * 3600000).toISOString().slice(0, 16)));
+	let dangLuuLich = $state(false);
+	let thongBaoLich = $state('');
+	async function luuLich() {
+		dangLuuLich = true;
+		thongBaoLich = '';
+		try {
+			const r = await fetch('/api/admin/lich-thi', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', authorization: `Bearer ${token.trim()}` },
+				body: JSON.stringify({ thoi_gian: gioThi })
+			});
+			const b = await r.json() as { error?: string };
+			thongBaoLich = r.ok ? 'Đã lưu giờ mở thi.' : (b.error ?? 'Không lưu được giờ thi.');
+		} catch { thongBaoLich = 'Không kết nối được máy chủ. Vui lòng thử lại.'; }
+		finally { dangLuuLich = false; }
+	}
+
 	import { trinhDuyet } from '#lib/trinh-duyet.ts';
 	type Viec = 'import' | 'resync';
 	type Kq = { kieu: 'ok' | 'loi' | 'xung_dot'; tieuDe: string; dong: string[]; canhBao: string[] };
@@ -217,6 +238,17 @@
 			</div>
 		</div>
 	</div>
+
+	<form class="card card-border mt-4" onsubmit={(e) => { e.preventDefault(); void luuLich(); }}>
+		<div class="card-body">
+			<h2 class="text-lg font-semibold">Thời gian mở thi</h2>
+			<label class="fieldset-legend" for="gio-thi">Ngày và giờ thi (Việt Nam, UTC+7)</label>
+			<input id="gio-thi" class="input w-full" type="datetime-local" required bind:value={gioThi} />
+			<p class="text-sm opacity-85">Trước giờ này, học viên thấy màn đếm ngược. Thay đổi không ảnh hưởng lượt đang thi.</p>
+			<button class="btn btn-primary" disabled={dangLuuLich || !token.trim()}>{dangLuuLich ? 'Đang lưu...' : 'Lưu giờ mở thi'}</button>
+			<p role="status">{thongBaoLich}</p>
+		</div>
+	</form>
 
 	<div class="card card-border mt-4">
 		<div class="card-body">
