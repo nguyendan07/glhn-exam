@@ -3,6 +3,27 @@
 	import type { PageProps } from './$types';
 	let { data }: PageProps = $props();
 	let gioThi = $state(untrack(() => new Date(data.lich.mo_thi_luc + 7 * 3600000).toISOString().slice(0, 16)));
+	let onDemNguoc = $state(untrack(() => data.lich.on_dem_nguoc));
+	let dangDoiDemNguoc = $state(false);
+	let thongBaoDemNguoc = $state('');
+	async function doiDemNguoc() {
+		if (dangDoiDemNguoc) return;
+		dangDoiDemNguoc = true;
+		thongBaoDemNguoc = '';
+		try {
+			const r = await fetch('/api/admin/lich-thi', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json', authorization: `Bearer ${token.trim()}` },
+				body: JSON.stringify({ on_dem_nguoc: !onDemNguoc })
+			});
+			const b = await r.json() as { error?: string; on_dem_nguoc: boolean };
+			if (r.ok) {
+				onDemNguoc = b.on_dem_nguoc;
+				thongBaoDemNguoc = onDemNguoc ? 'Đã bật màn đếm ngược.' : 'Đã tắt màn đếm ngược. Học viên có thể bắt đầu thi ngay.';
+			} else thongBaoDemNguoc = b.error ?? 'Không đổi được trạng thái đếm ngược.';
+		} catch { thongBaoDemNguoc = 'Không kết nối được máy chủ. Vui lòng thử lại.'; }
+		finally { dangDoiDemNguoc = false; }
+	}
 	let dangLuuLich = $state(false);
 	let thongBaoLich = $state('');
 	async function luuLich() {
@@ -242,9 +263,14 @@
 	<form class="card card-border mt-4" onsubmit={(e) => { e.preventDefault(); void luuLich(); }}>
 		<div class="card-body">
 			<h2 class="text-lg font-semibold">Thời gian mở thi</h2>
+			<button type="button" class="btn" disabled={dangDoiDemNguoc || !token.trim()} onclick={doiDemNguoc}>
+				{dangDoiDemNguoc ? 'Đang cập nhật...' : onDemNguoc ? 'Tắt màn đếm ngược' : 'Bật màn đếm ngược'}
+			</button>
+			<p class="text-sm">Màn đếm ngược: <b>{onDemNguoc ? 'Đang bật' : 'Đang tắt'}</b>. Khi tắt, học viên có thể bắt đầu thi ngay. Giờ đã đặt vẫn được giữ nguyên.</p>
+			<p role="status">{thongBaoDemNguoc}</p>
 			<label class="fieldset-legend" for="gio-thi">Ngày và giờ thi (Việt Nam, UTC+7)</label>
 			<input id="gio-thi" class="input w-full" type="datetime-local" required bind:value={gioThi} />
-			<p class="text-sm opacity-85">Trước giờ này, học viên thấy màn đếm ngược. Thay đổi không ảnh hưởng lượt đang thi.</p>
+			<p class="text-sm opacity-85">Khi bật, học viên thấy màn đếm ngược trước giờ này. Thay đổi không ảnh hưởng lượt đang thi.</p>
 			<button class="btn btn-primary" disabled={dangLuuLich || !token.trim()}>{dangLuuLich ? 'Đang lưu...' : 'Lưu giờ mở thi'}</button>
 			<p role="status">{thongBaoLich}</p>
 		</div>

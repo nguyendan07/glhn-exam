@@ -8,7 +8,7 @@
 	const tt = $derived(data.thongTin);
 	let moThiLuc = $state(untrack(() => data.lich.mo_thi_luc));
 	let bayGio = $state(untrack(() => data.lich.bay_gio));
-	let daXacNhanMo = $state(untrack(() => data.lich.bay_gio >= data.lich.mo_thi_luc));
+	let daXacNhanMo = $state(untrack(() => !data.lich.on_dem_nguoc || data.lich.bay_gio >= data.lich.mo_thi_luc));
 	const conLai = $derived(Math.max(0, Math.ceil((moThiLuc - bayGio) / 1000)));
 	const cacMoc = $derived([
 		{ so: Math.floor(conLai / 86400), ten: 'Ngày' },
@@ -27,12 +27,12 @@
 			try {
 				const r = await fetch('/api/lich-thi', { signal: huyLich.signal, cache: 'no-store' });
 				if (!r.ok) return;
-				const lich = await r.json() as { mo_thi_luc: number; bay_gio: number };
+				const lich = await r.json() as { mo_thi_luc: number; bay_gio: number; on_dem_nguoc: boolean };
 				moThiLuc = lich.mo_thi_luc;
 				gioMayChu = lich.bay_gio;
 				goc = performance.now();
 				bayGio = gioMayChu;
-				daXacNhanMo = bayGio >= moThiLuc;
+				daXacNhanMo = !lich.on_dem_nguoc || bayGio >= moThiLuc;
 			} catch { /* Thử lại ở lần đồng bộ tiếp theo. */ }
 			finally { dangTai = false; }
 		}

@@ -151,7 +151,7 @@ export async function batDau(db: D1Database, body: unknown, token: string | unde
 	if (cu) return tiepTuc(db, cu, token, now, may);
 
 	const lich = await docLichThi(db);
-	if (now < lich.mo_thi_luc) return { res: Response.json({ error: 'Chưa đến giờ thi. Vui lòng chờ đến giờ mở thi.' }, { status: 403 }) };
+	if (lich.on_dem_nguoc && now < lich.mo_thi_luc) return { res: Response.json({ error: 'Chưa đến giờ thi. Vui lòng chờ đến giờ mở thi.' }, { status: 403 }) };
 	const cfg = await docCauHinh(db);
 	const { results: nganHang } = await db.prepare('SELECT * FROM cau_hoi ORDER BY rowid').all<CauHoi>();
 	const de = taoDe(nganHang, cfg.phan);
